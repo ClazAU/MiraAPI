@@ -33,6 +33,10 @@ public static class RoleSettingMenuPatches
     private static RoleBehaviour? CurrentRole { get; set; }
     private static List<IModdedOption>? CurrentRoleOptions { get; set; }
 
+    private static List<AbstractOptionGroup>? CurrentRoleGroups { get; set; }
+
+    private static readonly Dictionary<AbstractOptionGroup, CategoryHeaderMasked> RoleGroupHeaders = [];
+
     [HarmonyPostfix]
     [HarmonyPatch(nameof(RolesSettingsMenu.OnEnable))]
     public static void OpenPatch(RolesSettingsMenu __instance)
@@ -433,20 +437,35 @@ public static class RoleSettingMenuPatches
         if (CurrentRole == null || CurrentRoleOptions == null) return false;
 
         var hasImage = CurrentRole.RoleScreenshot != null;
+        var optionX = hasImage ? 2.17f : 1.1f;
         var num = hasImage ? -0.872f : -1;
-        foreach (var opt in CurrentRoleOptions)
+        foreach (var group in CurrentRoleGroups ?? [])
         {
-            if (opt.OptionBehaviour == null) continue;
-
-            if (!opt.Visible.Invoke())
+            if (RoleGroupHeaders.TryGetValue(group, out var header) && header)
             {
-                opt.OptionBehaviour.gameObject.SetActive(false);
-                continue;
+                var showHeader = group.Options.Any(x => x.OptionBehaviour != null && x.Visible.Invoke());
+                header.gameObject.SetActive(showHeader);
+                if (showHeader)
+                {
+                    header.transform.localPosition = new Vector3(optionX + RoleGroupHeaderOffsetX, num, -2f);
+                    num -= 0.58f;
+                }
             }
 
-            opt.OptionBehaviour.transform.localPosition = new Vector3(hasImage ? 2.17f : 1.1f, num, -2f);
-            opt.OptionBehaviour.gameObject.SetActive(true);
-            num += -0.45f;
+            foreach (var opt in group.Options)
+            {
+                if (opt.OptionBehaviour == null) continue;
+
+                if (!opt.Visible.Invoke())
+                {
+                    opt.OptionBehaviour.gameObject.SetActive(false);
+                    continue;
+                }
+
+                opt.OptionBehaviour.transform.localPosition = new Vector3(optionX, num, -2f);
+                opt.OptionBehaviour.gameObject.SetActive(true);
+                num += -0.45f;
+            }
         }
 
         __instance.scrollBar.SetYBoundsMax(-num - 3);
@@ -501,14 +520,24 @@ public static class RoleSettingMenuPatches
             optBehaviour.gameObject.Destroy();
         }
 
+        DestroyRoleGroupHeaders();
+
         CurrentRole = role;
         __instance.advancedSettingChildren.Clear();
 
-        // TODO: create sub groups under the role settings.
-        var filteredOptions = MenuState.Instance.CurrentMod.InternalOptionGroups
-            .Where(x => x.GroupVisible() && x.OptionableType == role.GetType())
-            .SelectMany(x => x.Options)
+        var roleGroups = MenuState.Instance.CurrentMod.InternalOptionGroups
+            .Where(x => x.GroupVisible() && x.OptionableType == role.GetType() && x.Options.Count > 0)
             .ToList();
+        var filteredOptions = roleGroups.SelectMany(x => x.Options).ToList();
+
+        // A role with a single group keeps the plain list; headers only appear once there is something to tell apart.
+        if (roleGroups.Count > 1)
+        {
+            foreach (var group in roleGroups)
+            {
+                RoleGroupHeaders[group] = CreateRoleGroupHeader(__instance, group);
+            }
+        }
 
         foreach (var option in filteredOptions)
         {
@@ -541,6 +570,51 @@ public static class RoleSettingMenuPatches
         }
 
         CurrentRoleOptions = filteredOptions;
+        CurrentRoleGroups = roleGroups;
+    }
+
+    // The same distance the game settings tab keeps between a group header and its options.
+    private const float RoleGroupHeaderOffsetX = -1.855f;
+
+    private static CategoryHeaderMasked CreateRoleGroupHeader(RolesSettingsMenu menu, AbstractOptionGroup group)
+    {
+        var header = Object.Instantiate(
+            GameSettingMenu.Instance.GameSettingsTab.categoryHeaderOrigin,
+            Vector3.zero,
+            Quaternion.identity,
+            menu.AdvancedRolesSettings.transform);
+        header.name = RoleGroupHeaderName;
+        header.transform.localScale = Vector3.one * 0.63f;
+
+        header.SetHeader(MiraLocaleManager.GetOrCreateLocaleString(group.GroupName), 20);
+        header.Background.color = group.GroupColor;
+        header.Divider.color = group.GroupColor;
+        header.Title.color = group.GroupColor.Equals(MiraApiPlugin.DefaultHeaderColor)
+            ? Color.white
+            : group.GroupColor.FindAlternateColor();
+
+        header.Background.sprite = MiraAssets.CategoryHeader.LoadAsset();
+        header.Background.sprite.texture.filterMode = FilterMode.Bilinear;
+        header.Background.sprite.texture.wrapMode = TextureWrapMode.Clamp;
+        header.Background.transform.localPosition = new Vector3(0.5f, -0.1833f, 0);
+        header.Background.size = new Vector2(header.Background.size.x + 1.5f, header.Background.size.y);
+
+        header.gameObject.SetActive(false);
+        return header;
+    }
+
+    // Named apart from the tab's own "CategoryHeaderMasked", which ChangeTab looks up by name.
+    private const string RoleGroupHeaderName = "RoleGroupHeader";
+
+    private static void DestroyRoleGroupHeaders()
+    {
+        foreach (var header in RoleGroupHeaders.Values)
+        {
+            if (header) header.gameObject.Destroy();
+        }
+
+        RoleGroupHeaders.Clear();
+        CurrentRoleGroups = null;
     }
 
     [HarmonyPrefix]
@@ -561,6 +635,8 @@ public static class RoleSettingMenuPatches
         {
             optBehaviour.gameObject.Destroy();
         }
+
+        DestroyRoleGroupHeaders();
     }
 
     private static void ChangeTab(RoleBehaviour role, RolesSettingsMenu __instance)
