@@ -452,11 +452,12 @@ public static class RoleSettingMenuPatches
                 }
             }
 
+            var collapsed = group.AllOptionsHidden && RoleGroupHeaders.ContainsKey(group);
             foreach (var opt in group.Options)
             {
                 if (opt.OptionBehaviour == null) continue;
 
-                if (!opt.Visible.Invoke())
+                if (collapsed || !opt.Visible.Invoke())
                 {
                     opt.OptionBehaviour.gameObject.SetActive(false);
                     continue;
@@ -599,8 +600,41 @@ public static class RoleSettingMenuPatches
         header.Background.transform.localPosition = new Vector3(0.5f, -0.1833f, 0);
         header.Background.size = new Vector2(header.Background.size.x + 1.5f, header.Background.size.y);
 
+        // The role page is narrower than the game settings tab, so its mask would cut into a title left where it is.
+        header.Title.transform.localPosition += Vector3.right * RoleGroupTitleShiftX;
+
+        var hint = Object.Instantiate(header.Title, header.transform);
+        hint.gameObject.GetComponent<TextTranslatorTMP>().Destroy();
+        hint.transform.localPosition = new Vector3(2.6249f + RoleGroupTitleShiftX, -0.165f, 0f);
+        hint.text = CollapseHint(group);
+
+        var boxCol = header.gameObject.AddComponent<BoxCollider2D>();
+        boxCol.size = new Vector2(7, 0.7f);
+        boxCol.offset = new Vector2(1.5f, -0.3f);
+
+        var headerBtn = header.gameObject.AddComponent<PassiveButton>();
+        headerBtn.ClickSound = menu.BackButton.GetComponent<PassiveButton>().ClickSound;
+        headerBtn.ClickMask = menu.ButtonClickMask;
+        headerBtn.OnMouseOver = new UnityEvent();
+        headerBtn.OnMouseOut = new UnityEvent();
+        headerBtn.OnClick.AddListener(
+            (UnityAction)(() =>
+            {
+                group.AllOptionsHidden = !group.AllOptionsHidden;
+                hint.text = CollapseHint(group);
+            }));
+        headerBtn.SetButtonEnableState(true);
+
         header.gameObject.SetActive(false);
         return header;
+    }
+
+    private const float RoleGroupTitleShiftX = 0.9f;
+
+    private static string CollapseHint(AbstractOptionGroup group)
+    {
+        var key = group.AllOptionsHidden ? "MiraApi.GameSetting.Global.ClickToOpen" : "MiraApi.GameSetting.Global.ClickToClose";
+        return $"<size=70%>({key.Translate()})</size>";
     }
 
     // Named apart from the tab's own "CategoryHeaderMasked", which ChangeTab looks up by name.
