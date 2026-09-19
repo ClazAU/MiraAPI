@@ -576,7 +576,7 @@ public static class RoleSettingMenuPatches
 
     // Lines the header up with the page's own "return to role settings" header. The option column moves when the
     // role has a screenshot; the page header does not, so neither does this.
-    private const float RoleGroupHeaderX = -0.508f;
+    private const float RoleGroupHeaderX = -0.261f;
 
     private static CategoryHeaderMasked CreateRoleGroupHeader(RolesSettingsMenu menu, AbstractOptionGroup group)
     {
