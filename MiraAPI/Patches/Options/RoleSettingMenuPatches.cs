@@ -447,7 +447,7 @@ public static class RoleSettingMenuPatches
                 header.gameObject.SetActive(showHeader);
                 if (showHeader)
                 {
-                    header.transform.localPosition = new Vector3(optionX + RoleGroupHeaderOffsetX, num, -2f);
+                    header.transform.localPosition = new Vector3(RoleGroupHeaderX, num, -2f);
                     num -= 0.58f;
                 }
             }
@@ -574,8 +574,9 @@ public static class RoleSettingMenuPatches
         CurrentRoleGroups = roleGroups;
     }
 
-    // The same distance the game settings tab keeps between a group header and its options.
-    private const float RoleGroupHeaderOffsetX = -1.855f;
+    // Lines the header up with the page's own "return to role settings" header. The option column moves when the
+    // role has a screenshot; the page header does not, so neither does this.
+    private const float RoleGroupHeaderX = -0.508f;
 
     private static CategoryHeaderMasked CreateRoleGroupHeader(RolesSettingsMenu menu, AbstractOptionGroup group)
     {
@@ -600,12 +601,9 @@ public static class RoleSettingMenuPatches
         header.Background.transform.localPosition = new Vector3(0.5f, -0.1833f, 0);
         header.Background.size = new Vector2(header.Background.size.x + 1.5f, header.Background.size.y);
 
-        // The role page is narrower than the game settings tab, so its mask would cut into a title left where it is.
-        header.Title.transform.localPosition += Vector3.right * RoleGroupTitleShiftX;
-
         var hint = Object.Instantiate(header.Title, header.transform);
         hint.gameObject.GetComponent<TextTranslatorTMP>().Destroy();
-        hint.transform.localPosition = new Vector3(2.6249f + RoleGroupTitleShiftX, -0.165f, 0f);
+        hint.transform.localPosition = new Vector3(2.3f, -0.165f, 0f);
         hint.text = CollapseHint(group);
 
         var boxCol = header.gameObject.AddComponent<BoxCollider2D>();
@@ -628,8 +626,6 @@ public static class RoleSettingMenuPatches
         header.gameObject.SetActive(false);
         return header;
     }
-
-    private const float RoleGroupTitleShiftX = 0.9f;
 
     private static string CollapseHint(AbstractOptionGroup group)
     {
