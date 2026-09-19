@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
@@ -27,6 +27,15 @@ public class CustomPlayerMenu : CustomMultiSelectMenu<PlayerControl>
     {
         return Create<CustomPlayerMenu>();
     }
+
+    /// <summary>
+    /// Begins/opens the custom player menu. Kept as its own overload so mods compiled against 0.4.0, before
+    /// <c>shouldConfirm</c> existed, still bind to it.
+    /// </summary>
+    /// <param name="playerMatch">Function to determine if player should show in the custom menu.</param>
+    /// <param name="onClick"><see cref="PassiveButton.OnClick"/> action for player.</param>
+    public void Begin(Func<PlayerControl, bool> playerMatch, Action<PlayerControl?> onClick)
+        => Begin(playerMatch, onClick, false);
 
     /// <summary>
     /// Begins/opens the custom player menu.
