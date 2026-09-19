@@ -1,4 +1,4 @@
-﻿using MiraAPI.Patches.Stubs;
+using MiraAPI.Patches.Stubs;
 using MiraAPI.Utilities.Assets;
 using System;
 using System.Collections.Generic;
@@ -69,9 +69,14 @@ public abstract class CustomMultiSelectMenu<TEntry> : CustomPhoneMenu<CustomMult
 
         customMenu.confirmButton = null!; // TODO: create/add confirm button
 
-        var button = customMenu.confirmButton.GetComponent<PassiveButton>();
-        button.OnClick.RemoveAllListeners();
-        button.OnClick.AddListener((UnityAction)customMenu.OnCompleteSelection);
+        // Upstream has not built the confirm button yet, and dereferencing the placeholder threw for every menu,
+        // including single-select ones that never confirm.
+        if (customMenu.confirmButton != null)
+        {
+            var button = customMenu.confirmButton.GetComponent<PassiveButton>();
+            button.OnClick.RemoveAllListeners();
+            button.OnClick.AddListener((UnityAction)customMenu.OnCompleteSelection);
+        }
 
         customMenu.activeColor = activeColor;
 
