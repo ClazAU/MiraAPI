@@ -1,0 +1,52 @@
+name: Sync upstream
+
+# GitHub cannot trigger a fork from pushes to its upstream, so this polls instead.
+on:
+  schedule:
+    - cron: "17 */3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-upstream
+  cancel-in-progress: false
+
+env:
+  UPSTREAM: https://github.com/All-Of-Us-Mods/MiraAPI.git
+  FORK_BRANCH: clazau
+
+jobs:
+  sync:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.FORK_BRANCH }}
+          fetch-depth: 0
+          # The default token may not push commits that touch .github/workflows; set a SYNC_TOKEN secret
+          # (a PAT with the workflow scope) so upstream workflow changes can be carried over.
+          token: ${{ secrets.SYNC_TOKEN || github.token }}
+
+      - name: Fetch upstream
+        run: |
+          git remote add upstream "$UPSTREAM"
+          git fetch upstream master dev --tags
+
+      - name: Mirror master and dev
+        run: |
+          git push origin "refs/remotes/upstream/master:refs/heads/master"
+          git push origin "refs/remotes/upstream/dev:refs/heads/dev"
+
+      - name: Merge upstream dev into the fork branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git merge-base --is-ancestor upstream/dev HEAD; then
+            echo "Already up to date."
+            exit 0
+          fi
+          # A conflict fails the run and leaves the branch untouched, rather than guessing a resolution.
+          git merge --no-edit upstream/dev
+          git push origin "HEAD:$FORK_BRANCH"
