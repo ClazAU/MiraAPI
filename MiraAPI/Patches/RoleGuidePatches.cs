@@ -7,7 +7,11 @@ using HarmonyLib;
 using Innersloth.Assets;
 using MiraAPI.Roles;
 using MiraAPI.Utilities;
+using Reactor.Utilities.Extensions;
+using TMPro;
 using UnityEngine;
+using UnityEngine.Events;
+using UnityEngine.UI;
 using Object = UnityEngine.Object;
 
 namespace MiraAPI.Patches;
@@ -39,6 +43,8 @@ public static class RoleGuidePatches
                 __instance.MatchInfoRoleMaskArea.transform.parent.GetAllChildren()
                     .First(x => x.name.Contains("BG_Gradient")).GetComponent<SpriteRenderer>()
                     .maskInteraction = SpriteMaskInteraction.VisibleInsideMask;
+        var wikiTab = Object.Instantiate(__instance.settingsTabs[2], __instance.settingsTabs[2].transform.parent);
+        advancedWikiTab = wikiTab.GetComponent<Scroller>();
     }
 
     [HarmonyPrefix]
@@ -63,25 +69,41 @@ public static class RoleGuidePatches
         {
             Minigame.Instance.Close();
         }
+
         if (MapBehaviour.Instance)
         {
             MapBehaviour.Instance.Close();
         }
+
         if (HudManager.InstanceExists)
         {
             ConsoleJoystick.SetMode_MenuAdditive();
         }
+
         ControllerManager.Instance.OpenOverlayMenu("MatchInfoGuide", __instance.closeButton);
-        bool enabled = ActiveInputManager.currentControlType == ActiveInputManager.InputType.Joystick;
+        var enabled = ActiveInputManager.currentControlType == ActiveInputManager.InputType.Joystick;
         __instance.glyphL.enabled = enabled;
         __instance.glyphR.enabled = enabled;
+        if (!titleText)
+        {
+            titleText = __instance.transitionOpen.transform.FindChild("Text_Title")?.GetComponent<TextMeshPro>()!;
+            if (titleText)
+            {
+                titleText.transform.GetComponent<TextTranslatorTMP>().Destroy();
+            }
+        }
+
+        if (titleText)
+        {
+            titleText.text = TranslationController.Instance.GetString(StringNames.MatchInfoGuideTitle);
+        }
+
         if (GameManager.Instance.TryCast<NormalGameManager>() != null)
         {
             if (__instance.NormalModeSettings.Count == 0)
             {
                 __instance.numOfTabs = 3;
                 __instance.TabButtons[0].SelectButton(true);
-                DisplayNormalRoleSettings(__instance, true);
                 __instance.MatchInfoRoleMaskArea.transform.localPosition = new Vector3(-0.0184f, 0.15f, -0.1f);
 
                 __instance.matchInfoPlayersMaskArea.transform.localPosition =
@@ -100,6 +122,12 @@ public static class RoleGuidePatches
                         __instance.MatchInfoRoleMaskArea.transform.parent.GetAllChildren()
                             .First(x => x.name.Contains("BG_Gradient")).GetComponent<SpriteRenderer>()
                             .maskInteraction = SpriteMaskInteraction.VisibleInsideMask;
+                __instance.MatchInfoRoleMaskArea.material.SetInt(PlayerMaterial.MaskLayer, 50);
+                __instance.matchInfoSettingsMaskArea.material.SetInt(PlayerMaterial.MaskLayer, 50);
+                var wikiTab = Object.Instantiate(__instance.settingsTabs[2], __instance.settingsTabs[2].transform.parent);
+                wikiTab.transform.FindChild("MaskArea")?.transform.localPosition = new Vector3(-0.0184f, 0.15f, -0.1f);
+                advancedWikiTab = wikiTab.GetComponent<Scroller>();
+                DisplayNormalRoleSettings(__instance, true);
             }
             else
             {
@@ -112,26 +140,30 @@ public static class RoleGuidePatches
             __instance.TabButtons[0].SelectButton(true);
             __instance.CreateHnSModeSettings();
         }
+
         PlayerControl.LocalPlayer.NetTransform.Halt();
         __instance.MatchInfoParent.SetActive(true);
-        ControllerManager instance = ControllerManager.Instance;
-        ControllerUiElementsState currentUiState = ControllerManager.Instance.CurrentUiState;
-        Il2CppSystem.Collections.Generic.List<UiElement> controllerSelectable = __instance.ControllerSelectable;
-        instance.SetUpSelectables(currentUiState, controllerSelectable[controllerSelectable.Count - 1], __instance.ControllerSelectable);
-        ControllerManager instance2 = ControllerManager.Instance;
-        Il2CppSystem.Collections.Generic.List<UiElement> controllerSelectable2 = __instance.ControllerSelectable;
-        instance2.SetCurrentSelected(controllerSelectable2[controllerSelectable2.Count - 1]);
+        var instance = ControllerManager.Instance;
+        var currentUiState = ControllerManager.Instance.CurrentUiState;
+        var controllerSelectable = __instance.ControllerSelectable;
+        instance.SetUpSelectables(currentUiState, controllerSelectable[^1], __instance.ControllerSelectable);
+        var instance2 = ControllerManager.Instance;
+        var controllerSelectable2 = __instance.ControllerSelectable;
+        instance2.SetCurrentSelected(controllerSelectable2[^1]);
         __instance.SetActiveTab(0);
         return false;
     }
 
-    private static Dictionary<RoleBehaviour, MatchInfoRolePanel> _rolePanels = [];
+    private static readonly Dictionary<RoleBehaviour, MatchInfoRolePanel> RolePanels = [];
+    private static Scroller advancedWikiTab;
+    private static GameObject currentAdvancedTabObject;
+    private static TextMeshPro titleText;
 
     public static void DisplayNormalRoleSettings(MatchInfoGuide instance, bool reset)
     {
         if (reset)
         {
-            _rolePanels.Clear();
+            RolePanels.Clear();
             instance.CreateSettingsEntry(
                 StringNames.GameNumImpostors,
                 GameManager.Instance.AllGameSettingData[StringNames.GameNumImpostors]
@@ -143,7 +175,7 @@ public static class RoleGuidePatches
             instance.CreateSettingsEntry(
                 StringNames.GameEmergencyCooldown,
                 GameManager.Instance.AllGameSettingData[StringNames.GameEmergencyCooldown]
-                    .GetValueString((float)GameManager.Instance.LogicOptions.GetEmergencyCooldown()));
+                    .GetValueString(GameManager.Instance.LogicOptions.GetEmergencyCooldown()));
             instance.CreateSettingsEntry(
                 StringNames.GameVisualTasks,
                 instance.GetBoolString(GameManager.Instance.LogicOptions.GetVisualTasks()));
@@ -156,31 +188,54 @@ public static class RoleGuidePatches
             instance.CreateSettingsEntry(
                 StringNames.GameTaskBarMode,
                 GameManager.Instance.LogicOptions.GetTaskBarMode().ToString());
-            foreach (RoleBehaviour roleBehaviour in RoleManager.Instance.AllRoles)
+
+            var hoverColor = new Color32(255, 255, 255, 150);
+            foreach (var roleBehaviour in RoleManager.Instance.AllRoles.ToArray().OrderBy(x => x.GetRoleName()))
             {
-                if (roleBehaviour.Role != RoleTypes.Crewmate && roleBehaviour.Role != RoleTypes.Impostor &&
-                    roleBehaviour.Role is not RoleTypes.CrewmateGhost &&
-                    roleBehaviour.Role is not RoleTypes.ImpostorGhost)
+                if (roleBehaviour.Role is not RoleTypes.Crewmate and not RoleTypes.Impostor and
+                    not RoleTypes.CrewmateGhost and
+                    not RoleTypes.ImpostorGhost)
                 {
                     var panel = Object.Instantiate(
                         instance.MatchInfoRolePanelPrefab,
                         instance.settingsTabs[2].GetComponent<Scroller>().Inner);
-                    _rolePanels.Add(roleBehaviour, panel);
+                    var collider = panel.roleIcon.gameObject.AddComponent<BoxCollider2D>();
+                    collider.size = new Vector2(0.13f, 0.13f);
+                    collider.offset = new Vector2(0, 0);
+                    var passiveButton = panel.roleIcon.gameObject.AddComponent<PassiveButton>();
+                    passiveButton.ClickSound = HudManager.Instance.MapButton.ClickSound;
+                    passiveButton.OnMouseOver = new UnityEvent();
+                    passiveButton.OnMouseOver.AddListener(
+                        (UnityAction)(() =>
+                        {
+                            panel.roleIcon.color = hoverColor;
+                        }));
+                    passiveButton.OnMouseOut = new UnityEvent();
+                    passiveButton.OnMouseOut.AddListener(
+                        (UnityAction)(() =>
+                        {
+                            panel.roleIcon.color = Color.white;
+                        }));
+
+                    passiveButton.OnClick = new Button.ButtonClickedEvent();
+                    passiveButton.OnClick.AddListener(
+                        (Action)(() => { DisplayAdvancedWiki(instance, roleBehaviour); }));
+                    RolePanels.Add(roleBehaviour, panel);
                 }
             }
         }
 
-        int num = 0;
-        foreach (var pair in _rolePanels)
+        advancedWikiTab?.gameObject.SetActive(false);
+
+        var num = 0;
+        foreach (var (roleData, panel) in RolePanels)
         {
-            var role = pair.Key;
-            var panel = pair.Value;
-            var amount = GameOptionsManager.Instance.CurrentGameOptions.RoleOptions.GetNumPerGame(role.Role);
-            var chance = GameOptionsManager.Instance.CurrentGameOptions.RoleOptions.GetChancePerGame(role.Role);
-            var forciblyShow = role is ICustomRole custom ? custom.ForceShowRoleOnWiki : null;
-            if (amount == 0 || chance == 0 || (Enum.IsDefined(role.Role) && role.IsRoleBlacklisted()) ||
-                (role is ICustomRole custom2 && ((!custom2.CanSpawnOnCurrentMode() && forciblyShow == null) ||
-                                                 (forciblyShow.HasValue && !forciblyShow.Value))))
+            var amount = GameOptionsManager.Instance.CurrentGameOptions.RoleOptions.GetNumPerGame(roleData.Role);
+            var chance = GameOptionsManager.Instance.CurrentGameOptions.RoleOptions.GetChancePerGame(roleData.Role);
+            var forciblyShow = roleData is ICustomRole custom ? custom.ForceShowRoleOnWiki : null;
+            if (amount == 0 || chance == 0 || (Enum.IsDefined(roleData.Role) && roleData.IsRoleBlacklisted()) ||
+                (roleData is ICustomRole custom2 && ((!custom2.CanSpawnOnCurrentMode() && forciblyShow == null) ||
+                                                                    (forciblyShow.HasValue && !forciblyShow.Value))))
             {
                 panel.gameObject.SetActive(false);
                 continue;
@@ -188,7 +243,7 @@ public static class RoleGuidePatches
 
             panel.gameObject.SetActive(true);
             panel.SetPanel(
-                role,
+                roleData,
                 amount,
                 chance);
             num++;
@@ -199,9 +254,8 @@ public static class RoleGuidePatches
             instance.rolesEnabledMessage.SetActive(true);
         }
 
-        instance.MatchInfoRoleScroller.SetYBoundsMax(Mathf.Clamp(Mathf.Ceil((float)num / 2f) * 1.3f - 1.5f, 0f, 999f));
-        instance.MatchInfoRoleMaskArea.material.SetInt(PlayerMaterial.MaskLayer, 50);
-        instance.matchInfoSettingsMaskArea.material.SetInt(PlayerMaterial.MaskLayer, 50);
+        instance.MatchInfoRoleScroller.SetYBoundsMax(Mathf.Clamp(Mathf.Ceil(num / 2f) * 1.3f - 1.5f, 0f, 999f));
+        instance.MatchInfoRoleScroller.SetYBoundsMax(Mathf.Clamp(Mathf.Ceil(num / 2f) * 1.3f - 1.5f, 0f, 999f));
         if (reset)
         {
             instance.CreatePlayerEntries();
@@ -214,10 +268,10 @@ public static class RoleGuidePatches
     private static bool CreatePlayerEntries(MatchInfoGuide __instance)
     {
         __instance.PlayerPool.ReclaimAll();
-        int num = 51;
-        foreach (NetworkedPlayerInfo networkedPlayerInfo in GameData.Instance.AllPlayers)
+        var num = 51;
+        foreach (var networkedPlayerInfo in GameData.Instance.AllPlayers)
         {
-            PlayerIdentifierButton component =
+            var component =
                 __instance.PlayerPool.Get<PoolableBehavior>().GetComponent<PlayerIdentifierButton>();
             component.transform.localPosition = new Vector3(0f, 0f, -1f);
             component.Populate(networkedPlayerInfo);
@@ -227,21 +281,84 @@ public static class RoleGuidePatches
             component.NameText.transform.localPosition = new Vector3(0.3563f, 0, -2.98f);
             component.NameText.text += $"\n<size=75%>{networkedPlayerInfo.GetPlayerColorString()}</size>";
             var namePlate = HatManager.Instance.GetNamePlateById(networkedPlayerInfo.DefaultOutfit.NamePlateId);
-            var x = (NamePlateViewData viewdata) =>
+
+            __instance.StartCoroutine(
+                __instance.CoLoadAssetAsync<NamePlateViewData>(
+                    namePlate.GetAssetReference(),
+                    (Action<NamePlateViewData>?)LoadNameplate));
+
+            void LoadNameplate(NamePlateViewData viewData)
             {
-                component.buttonSprite.sprite = viewdata?.Image;
+                component.buttonSprite.sprite = viewData.Image;
                 component.buttonSprite.transform.localScale = new Vector3(0.7f, 1.075f, 1);
                 component.buttonSprite.transform.localPosition = new Vector3(-0.395f, 0, 0.1f);
-            };
-            __instance.StartCoroutine(
-                AddressableAssetExtensions.CoLoadAssetAsync<NamePlateViewData>(
-                    __instance,
-                    namePlate.GetAssetReference(),
-                    x));
+            }
         }
 
         return false;
     }
+
+    [HarmonyPostfix]
+    [HarmonyPriority(Priority.First)]
+    [HarmonyPatch(typeof(MatchInfoGuide), nameof(MatchInfoGuide.SetActiveTab))]
+    private static void SetActiveTab()
+    {
+        if (titleText)
+        {
+            titleText.text = TranslationController.Instance.GetString(StringNames.MatchInfoGuideTitle);
+        }
+
+        advancedWikiTab?.gameObject.SetActive(false);
+    }
+
+    public static void DisplayAdvancedWiki(MatchInfoGuide instance, RoleBehaviour role)
+    {
+        Warning($"Opening advanced tab for {role.GetRoleName()}.");
+        instance.settingsTabs[2].SetActive(false);
+        advancedWikiTab?.gameObject.SetActive(true);
+        if (currentAdvancedTabObject)
+        {
+            currentAdvancedTabObject.SetActive(false);
+            currentAdvancedTabObject.Destroy();
+        }
+
+        if (advancedWikiTab == null)
+        {
+            Warning($"Wiki tab is null.");
+            return;
+        }
+
+        if (role is ICustomRole custom)
+        {
+            currentAdvancedTabObject = custom.GetAdvancedWiki(instance, titleText, advancedWikiTab);
+        }
+        else
+        {
+            advancedWikiTab.ScrollToTop();
+            var titleTxt = role.GetRoleName() + $" ({TranslationController.Instance.GetString(role.TeamType is RoleTeamTypes.Crewmate ? StringNames.Crewmate : StringNames.Impostor)})";
+            var description = TranslationController.Instance.GetString(role.BlurbNameLong);
+            if (description.Contains("STRMISS"))
+            {
+                var baseName = $"{role.StringName}".Replace("Role", string.Empty);
+                if (Enum.TryParse<StringNames>($"RolesHelp_{baseName}_01", out var helpName))
+                {
+                    description = TranslationController.Instance.GetString(helpName);
+                }
+            }
+
+            currentAdvancedTabObject = Helpers.CreateAdvancedWikiTab(
+                instance,
+                role.Role.ToString(),
+                titleTxt,
+                description,
+                titleText,
+                out var desc);
+            currentAdvancedTabObject.transform.SetParent(advancedWikiTab.Inner.transform);
+            currentAdvancedTabObject.transform.localPosition = new Vector3(0f, 0f, 0f);
+            advancedWikiTab.SetYBoundsMax(Mathf.Clamp(desc.textBounds.size.y - 2, 0f, 999f));
+        }
+    }
+
     [HarmonyPrefix]
     [HarmonyPriority(Priority.First)]
     [HarmonyPatch(typeof(MatchInfoRolePanel), nameof(MatchInfoRolePanel.SetPanel))]
