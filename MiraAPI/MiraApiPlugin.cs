@@ -5,6 +5,7 @@ using BepInEx;
 using BepInEx.Configuration;
 using BepInEx.Unity.IL2CPP;
 using HarmonyLib;
+using MiraAPI.Patches.Roles;
 using MiraAPI.PluginLoading;
 using MiraAPI.Translation;
 using MiraAPI.VanillaEvents;
@@ -70,6 +71,7 @@ public partial class MiraApiPlugin : BasePlugin, IMiraPlugin
     public override void Load()
     {
         Harmony.PatchAll();
+        RoleOptionsCollectionPatch.PatchRoleMethods(Harmony);
         UiResetEvents.Initialize();
         JudgeEvents.Initialize();
 
