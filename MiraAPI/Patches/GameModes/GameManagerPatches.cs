@@ -18,9 +18,11 @@ internal static class GameManagerPatches
         return true;
     }
     [HarmonyPrefix, HarmonyPatch(nameof(GameManager.ShowCrewmatesKilled))]
-    public static bool ShowCrewmatesKilledPrefix(ref bool __result)
+    public static bool ShowCrewmatesKilledPrefix(GameManager __instance, ref bool __result)
     {
-        if (CustomGameModeManager.ActiveMode != null)
+        // On 2026.9.29 x64 this `return false` body is folded with other zero-returning methods (an Addressables
+        // DebugName getter among them), so only answer for the real game manager.
+        if (CustomGameModeManager.ActiveMode != null && __instance == GameManager.Instance)
         {
             __result = CustomGameModeManager.ActiveMode is HideAndSeekMode;
             return false;
