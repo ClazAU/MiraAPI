@@ -87,24 +87,31 @@ public static class RoleManagerPatches
 
     [HarmonyPrefix]
     [HarmonyPatch(nameof(RoleManager.AssignRoleOnDeath))]
-    public static bool AssignRoleOnDeath([HarmonyArgument(0)] PlayerControl plr)
+    public static bool AssignRoleOnDeath([HarmonyArgument(0)] PlayerControl plr, [HarmonyArgument(1)] bool specialRolesAllowed)
     {
         if (!plr || !plr.Data.IsDead)
         {
             return false;
         }
 
-        if (plr.Data.Role is not ICustomRole role)
+        if (plr.Data.Role is ICustomRole role && role.Configuration.GhostRole is not (RoleTypes.CrewmateGhost or RoleTypes.ImpostorGhost))
+        {
+            plr.RpcSetRole(role.Configuration.GhostRole);
+            return false;
+        }
+
+        if (!specialRolesAllowed || !AmongUsClient.Instance.AmHost || RoleManager.IsGhostRole(plr.Data.Role.Role))
         {
             return true;
         }
 
-        if (role.Configuration.GhostRole is RoleTypes.CrewmateGhost or RoleTypes.ImpostorGhost)
+        var ghostRole = GhostRoleAssignment.Roll(plr.Data.Role.IsImpostor);
+        if (ghostRole == null)
         {
             return true;
         }
 
-        plr.RpcSetRole(role.Configuration.GhostRole);
+        GhostRoleAssignment.RpcSetGhostRole(PlayerControl.LocalPlayer, plr, (ushort)ghostRole.Value);
         return false;
     }
 }
