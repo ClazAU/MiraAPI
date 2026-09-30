@@ -4,6 +4,8 @@
 
 > This mod is not affiliated with Among Us or Innersloth LLC, and the content contained therein is not endorsed or otherwise sponsored by Innersloth LLC. Portions of the materials contained herein are property of Innersloth LLC. © Innersloth LLC.
 
+> **ClazAU hard fork.** Mira API was created by [All-Of-Us-Mods](https://github.com/All-Of-Us-Mods/MiraAPI), and all credit for it goes to them. This fork prioritises long-term stability over new features and carries changes made specifically for ClazAU's mods, so it may diverge from upstream and isn't guaranteed to stay compatible with it. We were already maintaining our own modified build to keep up with each Among Us release, and most new upstream features went unused in our projects. For the original project, its support and its releases, see [All-Of-Us-Mods/MiraAPI](https://github.com/All-Of-Us-Mods/MiraAPI).
+
 # Mira API
 
 A thorough, but simple, Among Us modding API and utility library that covers:
