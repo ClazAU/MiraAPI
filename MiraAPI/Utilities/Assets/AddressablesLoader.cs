@@ -178,22 +178,22 @@ public static class AddressablesLoader
         var hatData = new List<HatData>();
         hatData.AddRange(HatManager.Instance.allHats);
         hatData.ForEach(x => x.StoreName = "Vanilla");
-        HatManager.Instance.allHats = PrepareArray(hatData, hatBehaviours);
+        HatManager.Instance.allHats = Il2CppArrays.Of(PrepareArray(hatData, hatBehaviours));
 
         var skinData = new List<SkinData>();
         skinData.AddRange(HatManager.Instance.allSkins);
         skinData.ForEach(x => x.StoreName = "Vanilla");
-        HatManager.Instance.allSkins = PrepareArray(skinData, skinBehaviours);
+        HatManager.Instance.allSkins = Il2CppArrays.Of(PrepareArray(skinData, skinBehaviours));
 
         var visorData = new List<VisorData>();
         visorData.AddRange(HatManager.Instance.allVisors);
         VisorsTabPatches.AddRange(visorBehaviours);
-        HatManager.Instance.allVisors = PrepareArray(visorData, [.. visorBehaviours.Select(x => x.Data)]);
+        HatManager.Instance.allVisors = Il2CppArrays.Of(PrepareArray(visorData, [.. visorBehaviours.Select(x => x.Data)]));
 
         var namePlateData = new List<NamePlateData>();
         namePlateData.AddRange(HatManager.Instance.allNamePlates);
         NameplatesTabPatches.AddRange(namePlateBehaviours);
-        HatManager.Instance.allNamePlates = PrepareArray(namePlateData, [.. namePlateBehaviours.Select(x => x.Data)]);
+        HatManager.Instance.allNamePlates = Il2CppArrays.Of(PrepareArray(namePlateData, [.. namePlateBehaviours.Select(x => x.Data)]));
     }
 
     private static T[] PrepareArray<T>(List<T> data, List<T> behaviours)
