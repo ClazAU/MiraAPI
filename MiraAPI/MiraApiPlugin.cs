@@ -67,7 +67,6 @@ public partial class MiraApiPlugin : BasePlugin, IMiraPlugin
     public override void Load()
     {
         Harmony.PatchAll();
-        RoleOptionsCollectionPatch.PatchRoleMethods(Harmony);
         UiResetEvents.Initialize();
         JudgeEvents.Initialize();
 
