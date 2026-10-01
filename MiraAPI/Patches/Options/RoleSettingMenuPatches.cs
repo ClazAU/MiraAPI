@@ -7,12 +7,10 @@ using BepInEx.Unity.IL2CPP.Utils.Collections;
 using HarmonyLib;
 using MiraAPI.GameModes;
 using MiraAPI.GameOptions;
-using MiraAPI.Networking;
 using MiraAPI.Roles;
 using MiraAPI.Translation;
 using MiraAPI.Utilities;
 using MiraAPI.Utilities.Assets;
-using Reactor.Networking.Rpc;
 using Reactor.Utilities.Extensions;
 using TMPro;
 using UnityEngine;
@@ -513,11 +511,7 @@ public static class RoleSettingMenuPatches
             roleSetting.RoleChance,
             roleSetting.Role.TeamType);
 
-        if (AmongUsClient.Instance.AmHost)
-        {
-            Rpc<SyncRoleOptionsRpc>.Instance.Send(PlayerControl.LocalPlayer, [role.GetNetData()], true);
-        }
-
+        CustomRoleManager.SyncRoleSettings(role);
         GameOptionsManager.Instance.GameHostOptions = GameOptionsManager.Instance.CurrentGameOptions;
     }
 

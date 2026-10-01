@@ -261,6 +261,20 @@ public static class CustomRoleManager
         panel.SetTaskText(role.SetTabText().ToString());
     }
 
+    /// <summary>
+    /// Sends a custom role's count and chance from the host to every other client, as the role settings menu does.
+    /// </summary>
+    /// <param name="role">The role whose count or chance changed.</param>
+    public static void SyncRoleSettings(ICustomRole role)
+    {
+        if (!AmongUsClient.Instance.AmHost || role.Configuration.HideSettings)
+        {
+            return;
+        }
+
+        Rpc<SyncRoleOptionsRpc>.Instance.Send(PlayerControl.LocalPlayer, [role.GetNetData()], true);
+    }
+
     internal static void SyncAllRoleSettings(int targetId = -1)
     {
         var data = CustomRoles.Values
