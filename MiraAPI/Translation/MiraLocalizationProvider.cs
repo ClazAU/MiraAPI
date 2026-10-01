@@ -22,7 +22,9 @@ public class MiraLocalizationProvider : LocalizationProvider
     {
         if (MiraLocaleManager.StringNamesLookup.TryGetValue(stringName, out var key))
         {
-            result = MiraLocaleManager.Get(key);
+            result = MiraLocaleManager.StringNamesFallbacks.TryGetValue(stringName, out var fallback)
+                ? MiraLocaleManager.Get(key, fallback())
+                : MiraLocaleManager.Get(key);
             return true;
         }
 

@@ -35,6 +35,7 @@ public static class MiraLocaleManager
     /// </summary>
     public static readonly Dictionary<string, StringNames> RegisteredStringNames = [];
     internal static readonly Dictionary<StringNames, string> StringNamesLookup = [];
+    internal static readonly Dictionary<StringNames, Func<string>> StringNamesFallbacks = [];
 
     /// <summary>
     /// Gets a dictionary mapping <see cref="MiraLanguage"/> values to their standard language codes.
@@ -276,6 +277,21 @@ public static class MiraLocaleManager
         RegisteredStringNames.Add(name, newString);
         StringNamesLookup.Add(newString, name);
         return newString;
+    }
+
+    /// <summary>
+    /// Retrieves the <see cref="StringNames"/> value for a locale key, shown as <paramref name="fallback"/>'s text while the
+    /// key has no translation. Mods built before keys existed set their text directly, so without a fallback the key itself
+    /// would be shown.
+    /// </summary>
+    /// <param name="name">The name of the locale string.</param>
+    /// <param name="fallback">Supplies the text to show when <paramref name="name"/> has no translation.</param>
+    /// <returns>The corresponding <see cref="StringNames"/> value.</returns>
+    public static StringNames GetOrCreateLocaleString(string name, Func<string> fallback)
+    {
+        var stringName = GetOrCreateLocaleString(name);
+        StringNamesFallbacks[stringName] = fallback;
+        return stringName;
     }
 
     /// <summary>
