@@ -84,4 +84,9 @@ public enum MiraRpc : uint
     /// Custom RPC to sync the Gamemode option.
     /// </summary>
     SyncGamemodeOption,
+
+    /// <summary>
+    /// Host gives a dead player a custom ghost role on every client.
+    /// </summary>
+    SetGhostRole,
 }
