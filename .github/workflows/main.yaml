@@ -5,6 +5,9 @@ on: ["workflow_dispatch", "push", "pull_request"]
 jobs:
   build:
     runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+      packages: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -36,11 +39,37 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: AllOfUs.MiraAPI.nupkg
-          path: MiraAPI/bin/Release/AllOfUs.MiraAPI.*.nupkg
-          
+          name: ClazAU.MiraAPI.nupkg
+          path: MiraAPI/bin/Release/ClazAU.MiraAPI.*.nupkg
+
+      # A push to main whose VersionPrefix has no v<version> tag yet publishes that version: the package to the
+      # ClazAU feed that mods compile against, and the DLL to a GitHub release. Asks the remote, since a shallow
+      # checkout has no tags.
+      - name: Check for an unreleased version
+        id: release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          version=$(grep -oP '(?<=<VersionPrefix>)[^<]+' Directory.Build.props)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if [ -n "$(git ls-remote --tags origin "refs/tags/v$version")" ]; then
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build the release
+        if: steps.release.outputs.publish == 'true'
+        run: dotnet build MiraAPI/MiraAPI.csproj --configuration Release -p:Version=${{ steps.release.outputs.version }}
+
+      - name: Publish to the ClazAU NuGet feed
+        if: steps.release.outputs.publish == 'true'
+        run: >-
+          dotnet nuget push "MiraAPI/bin/Release/ClazAU.MiraAPI.${{ steps.release.outputs.version }}.nupkg"
+          --source "https://nuget.pkg.github.com/ClazAU/index.json"
+          --api-key "${{ secrets.GITHUB_TOKEN }}"
+
       - uses: softprops/action-gh-release@v2
-        if: github.ref_type == 'tag'
+        if: steps.release.outputs.publish == 'true'
         with:
-          draft: true
+          tag_name: v${{ steps.release.outputs.version }}
           files: MiraAPI/bin/Release/net6.0/MiraAPI.dll
