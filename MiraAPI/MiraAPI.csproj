@@ -2,7 +2,7 @@
     <PropertyGroup>
         <LangVersion>preview</LangVersion>
         <Description>Simple and easy to use Among Us modding API.</Description>
-        <PackageId>AllOfUs.MiraAPI</PackageId>
+        <PackageId>ClazAU.MiraAPI</PackageId>
         <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
         <NoWarn>IDE0031;IDE0032</NoWarn>
