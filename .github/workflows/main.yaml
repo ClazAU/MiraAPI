@@ -2,6 +2,10 @@ name: CI
 
 on: ["workflow_dispatch", "push", "pull_request"]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   build:
     runs-on: ubuntu-22.04
@@ -42,9 +46,9 @@ jobs:
           name: ClazAU.MiraAPI.nupkg
           path: MiraAPI/bin/Release/ClazAU.MiraAPI.*.nupkg
 
-      # A push to main whose VersionPrefix has no v<version> tag yet publishes that version: the package to the
-      # ClazAU feed that mods compile against, and the DLL to a GitHub release. Asks the remote, since a shallow
-      # checkout has no tags.
+      # A push to main whose VersionPrefix has no v<version> tag yet publishes that version: the DLL to the panel the
+      # launcher serves players from, the package to the ClazAU feed that mods compile against, and the DLL to a GitHub
+      # release. Asks the remote, since a shallow checkout has no tags.
       - name: Check for an unreleased version
         id: release
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -61,12 +65,32 @@ jobs:
         if: steps.release.outputs.publish == 'true'
         run: dotnet build MiraAPI/MiraAPI.csproj --configuration Release -p:Version=${{ steps.release.outputs.version }}
 
+      # Before the package and the tag: a failed upload stops the job before v<version> exists, so a re-run retries it.
+      - name: Upload to the panel
+        if: steps.release.outputs.publish == 'true'
+        env:
+          PANEL_API_URL: ${{ secrets.PANEL_API_URL }}
+          PANEL_API_KEY: ${{ secrets.PANEL_API_KEY }}
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          if [ -z "$PANEL_API_URL" ] || [ -z "$PANEL_API_KEY" ]; then
+            echo "::error::PANEL_API_URL or PANEL_API_KEY is not configured"; exit 1
+          fi
+          status=$(curl -sS --retry 2 --retry-delay 10 --max-time 300 -o response.txt -w '%{http_code}'             -X POST "$PANEL_API_URL/api/v3/mods/MiraAPI/versions"             -H "Authorization: Bearer $PANEL_API_KEY"             -F "version=$VERSION"             -F "notes=Built from ${{ github.sha }}"             -F "file=@MiraAPI/bin/Release/net6.0/MiraAPI.dll")
+          cat response.txt
+          case "$status" in
+            2??) echo "Uploaded v$VERSION to the panel (HTTP $status)" ;;
+            409) echo "::notice::v$VERSION is already on the panel" ;;
+            *) echo "::error::Panel upload failed with HTTP $status; nothing was published, re-run to retry"; exit 1 ;;
+          esac
+
       - name: Publish to the ClazAU NuGet feed
         if: steps.release.outputs.publish == 'true'
         run: >-
           dotnet nuget push "MiraAPI/bin/Release/ClazAU.MiraAPI.${{ steps.release.outputs.version }}.nupkg"
           --source "https://nuget.pkg.github.com/ClazAU/index.json"
           --api-key "${{ secrets.GITHUB_TOKEN }}"
+          --skip-duplicate
 
       - uses: softprops/action-gh-release@v2
         if: steps.release.outputs.publish == 'true'
