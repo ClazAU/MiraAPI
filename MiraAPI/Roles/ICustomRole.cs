@@ -246,6 +246,15 @@ public interface ICustomRole : IOptionable
     }
 
     /// <summary>
+    /// Whether the <see cref="PlayerControl.LocalPlayer"/> sees this role's team in its name colour, as impostors see each
+    /// other in impostor red. Return <see langword="false"/> to show the name in white instead, so the role passes as plain
+    /// crew even to its own team. <see cref="CanLocalPlayerSeeRole"/> still wins, and the player's own name is unaffected.
+    /// </summary>
+    /// <param name="player">The player with the role.</param>
+    /// <returns>Whether they see the team colour.</returns>
+    bool CanLocalPlayerSeeTeam(PlayerControl player) => true;
+
+    /// <summary>
     /// Allows the role to specify who is shown on the intro team screen.
     /// </summary>
     /// <param name="instance">The intro cutscene instance.</param>

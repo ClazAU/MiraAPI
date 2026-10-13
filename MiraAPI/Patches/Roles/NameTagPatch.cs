@@ -20,6 +20,13 @@ public static class NameTagPatch
             return false;
         }
 
+        if (otherPlayerRole is ICustomRole teamHidden && PlayerControl.LocalPlayer.Data?.Role != otherPlayerRole &&
+            !teamHidden.CanLocalPlayerSeeTeam(otherPlayerRole.Player))
+        {
+            __result = Color.white;
+            return false;
+        }
+
         if (PlayerControl.LocalPlayer.Data?.Role?.IsImpostor == true && otherPlayerRole.IsImpostor)
         {
             return true;
