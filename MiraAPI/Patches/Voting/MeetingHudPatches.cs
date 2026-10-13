@@ -76,25 +76,36 @@ internal static class MeetingHudPatches
         return false;
     }
 
+    private static void ResetForMeeting(PlayerControl plr)
+    {
+        if (!plr || plr.Data == null) return;
+
+        var voteData = plr.GetVoteData();
+        voteData.Votes.Clear();
+        voteData.SetRemainingVotes(plr.Data.IsDead || plr.Data.Disconnected ? 0 : 1);
+
+        foreach (var modifier in plr.GetModifierComponent().ActiveModifiers)
+        {
+            modifier.OnMeetingStart();
+        }
+    }
+
     [HarmonyPostfix]
     [HarmonyPatch(nameof(MeetingHud.Start))]
     public static void MeetingHudStartPatch(MeetingHud __instance)
     {
         MeetingButtonManager.OnMeetingStart(__instance);
-        foreach (var plr in PlayerControl.AllPlayerControls)
+
+        // One broken player or modifier must not cost every other player their vote reset, or every mod its StartMeetingEvent.
+        foreach (var plr in PlayerControl.AllPlayerControls.ToArray())
         {
-            var voteData = plr.GetVoteData();
-            voteData.Votes.Clear();
-            voteData.SetRemainingVotes(1);
-
-            if (plr.Data.IsDead || plr.Data.Disconnected)
+            try
             {
-                voteData.SetRemainingVotes(0);
+                ResetForMeeting(plr);
             }
-
-            foreach (var modifier in plr.GetModifierComponent().ActiveModifiers)
+            catch (System.Exception e)
             {
-                modifier.OnMeetingStart();
+                Error($"Meeting start for player {(plr ? plr.PlayerId : -1)} failed: {e}");
             }
         }
 
@@ -186,27 +197,31 @@ internal static class MeetingHudPatches
     [HarmonyPatch(nameof(MeetingHud.HandleDisconnect), typeof(PlayerControl), typeof(DisconnectReasons))]
     public static bool HandleDisconnect(MeetingHud __instance, PlayerControl pc)
     {
-        if (!AmongUsClient.Instance.AmHost || __instance.playerStates is null || !pc || !GameData.Instance)
+        // Vanilla only draws the disconnected overlay on other clients and returns before touching votes when not the host.
+        if (!AmongUsClient.Instance.AmHost)
+        {
+            return true;
+        }
+
+        if (__instance.playerStates is null || !pc || !GameData.Instance)
         {
             return false;
         }
 
-        var playerVoteArea = __instance.playerStates.First(pv => pv.PlayerId == pc.PlayerId);
-        playerVoteArea.AmDead = true;
-        playerVoteArea.Overlay.gameObject.SetActive(true);
+        var playerVoteArea = __instance.playerStates.FirstOrDefault(pv => pv != null && pv.PlayerId == pc.PlayerId);
+        if (playerVoteArea != null)
+        {
+            playerVoteArea.AmDead = true;
+            playerVoteArea.Overlay.gameObject.SetActive(true);
+        }
 
         foreach (var player in Helpers.GetAlivePlayers())
         {
-            var pva = __instance.playerStates.First(pv => pv.PlayerId == player.PlayerId);
-            var voteData = player.GetVoteData();
-
-            if (pva.AmDead || !voteData.VotedFor(pc.PlayerId))
+            var pva = __instance.playerStates.FirstOrDefault(pv => pv != null && pv.PlayerId == player.PlayerId);
+            if (pva == null || pva.AmDead || !VotingUtils.RefundVotes(player.PlayerId, pc.PlayerId))
             {
                 continue;
             }
-
-            voteData.Votes.RemoveAll(x => x.Suspect == pc.PlayerId);
-            voteData.VotesRemaining += 1;
 
             VotingUtils.RpcRemoveVote(PlayerControl.LocalPlayer, player.PlayerId, pc.PlayerId);
         }

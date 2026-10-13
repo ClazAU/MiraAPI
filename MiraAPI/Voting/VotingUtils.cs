@@ -57,7 +57,8 @@ public static class VotingUtils
         }
 
         if (voteData.VotesRemaining == 0 ||
-            voteData.VotedFor(suspectIdx))
+            voteData.VotedFor(suspectIdx) ||
+            IsGone(suspectIdx))
         {
             cancelVote = true;
             return;
@@ -84,32 +85,86 @@ public static class VotingUtils
     [MethodRpc((uint)MiraRpc.RemoveVote)]
     public static void RpcRemoveVote(PlayerControl source, byte voterId, byte votedFor)
     {
-        if (!source.IsHost()) return;
+        if (!source.IsHost() || MeetingHud.Instance is not { } meeting) return;
 
-        MeetingHud.Instance.playerStates.First(state => state.PlayerId == voterId).UnsetVote();
+        VoteArea(meeting, voterId)?.UnsetVote();
+
+        // The host refunded before sending this; every other client holds the same replicated vote data and refunds it here.
+        if (!AmongUsClient.Instance.AmHost)
+        {
+            RefundVotes(voterId, votedFor);
+        }
 
         if (PlayerControl.LocalPlayer.PlayerId != voterId)
         {
             return;
         }
 
-        MeetingHud.Instance.playerStates.First(state => state.PlayerId == votedFor).ThumbsDown.enabled = false;
-
-        if (!AmongUsClient.Instance.AmHost)
+        var target = VoteArea(meeting, votedFor);
+        if (target != null)
         {
-            var voteData = PlayerControl.LocalPlayer.GetVoteData();
-            voteData.DecreaseRemainingVotes(1);
-            voteData.RemovePlayerVote(votedFor);
+            target.ThumbsDown.enabled = false;
         }
 
-        foreach (var t in MeetingHud.Instance.playerStates)
+        foreach (var t in meeting.playerStates)
         {
             t.VoteComplete = false;
         }
 
-        MeetingHud.Instance.SkipVoteButton.VoteComplete = false;
-        MeetingHud.Instance.SkipVoteButton.gameObject.SetActive(true);
+        meeting.SkipVoteButton.VoteComplete = false;
+        meeting.SkipVoteButton.gameObject.SetActive(true);
     }
+
+    /// <summary>
+    /// Takes a player who died during a meeting out of it on this client: their vote area shows them dead and every vote
+    /// cast for them is handed back, so those voters can vote again. Runs locally; MiraAPI calls it on every client when a
+    /// player dies while a meeting is open, and it does nothing the second time.
+    /// </summary>
+    /// <param name="dead">The player who died.</param>
+    public static void RemoveFromMeeting(PlayerControl dead)
+    {
+        var meeting = MeetingHud.Instance;
+        if (meeting == null || dead == null) return;
+
+        var deadArea = VoteArea(meeting, dead.PlayerId);
+        if (deadArea != null) deadArea.SetDead(true);
+        if (dead == PlayerControl.LocalPlayer) meeting.SetVoteComplete(complete: true, clearButtons: true);
+        if (meeting.state is not (MeetingHud.MeetingStates.NotVoted or MeetingHud.MeetingStates.Voted)) return;
+
+        var refunded = false;
+        foreach (var voter in PlayerControl.AllPlayerControls.ToArray())
+        {
+            if (voter == null || voter.Data == null || voter.Data.IsDead || !RefundVotes(voter.PlayerId, dead.PlayerId)) continue;
+
+            refunded = true;
+            VoteArea(meeting, voter.PlayerId)?.UnsetVote();
+            if (voter != PlayerControl.LocalPlayer) continue;
+
+            if (deadArea != null) deadArea.ThumbsDown.enabled = false;
+            meeting.SetVoteComplete(complete: false, clearButtons: false);
+        }
+
+        if (!AmongUsClient.Instance.AmHost || !refunded) return;
+        meeting.SetDirtyBit(1U);
+        meeting.CheckForEndVoting();
+    }
+
+    internal static bool RefundVotes(byte voterId, byte votedFor)
+    {
+        var voter = GameData.Instance.GetPlayerById(voterId);
+        if (voter == null || voter.Object == null || !voter.Object.GetComponent<PlayerVoteData>()) return false;
+
+        var voteData = voter.Object.GetVoteData();
+        var removed = voteData.Votes.RemoveAll(vote => vote.Suspect == votedFor);
+        if (removed > 0) voteData.IncreaseRemainingVotes(removed);
+        return removed > 0;
+    }
+
+    private static PlayerVoteArea? VoteArea(MeetingHud meeting, byte playerId) =>
+        meeting.playerStates.FirstOrDefault(area => area != null && area.PlayerId == playerId);
+
+    private static bool IsGone(byte playerId) =>
+        GameData.Instance.GetPlayerById(playerId) is { } player && (player.IsDead || player.Disconnected);
 
     /// <summary>
     /// Networks the casting of a vote. We replace the vanilla solution with a custom version that works for Judge specifically.
@@ -137,7 +192,7 @@ public static class VotingUtils
     public static void CustomCastJudgeVote(PlayerId judgePlayerId, PlayerId targetPlayerId, ushort overruleNonce)
     {
         var plr = GameData.Instance.GetPlayerById(judgePlayerId.Value);
-        if (!plr) return;
+        if (!plr || !plr.Object || !MeetingHud.Instance) return;
 
         var voteData = plr.Object.GetVoteData();
         if (!voteData) return;
@@ -169,7 +224,7 @@ public static class VotingUtils
         if (voteData.VotesRemaining == 0)
         {
             MeetingHud.Instance.AddOrUpdateJudgeOverrule(judgePlayerId, targetPlayerId, overruleNonce);
-            MeetingHud.Instance.playerStates.First(x => x.PlayerId == judgePlayerId.Value).SetVote(targetPlayerId.Value);
+            VoteArea(MeetingHud.Instance, judgePlayerId.Value)?.SetVote(targetPlayerId.Value);
         }
 
         // If host, then check end voting, and set votes/send chat if applicable
@@ -206,7 +261,7 @@ public static class VotingUtils
     public static void CustomCastVote(byte srcPlayerId, byte suspectPlayerId)
     {
         var plr = GameData.Instance.GetPlayerById(srcPlayerId);
-        if (!plr) return;
+        if (!plr || !plr.Object || !MeetingHud.Instance) return;
 
         var voteData = plr.Object.GetVoteData();
         if (!voteData) return;
@@ -237,7 +292,7 @@ public static class VotingUtils
         // If player has no more votes, then make it show that the player has used all their votes.
         if (voteData.VotesRemaining == 0)
         {
-            MeetingHud.Instance.playerStates.First(x => x.PlayerId == srcPlayerId).SetVote(suspectPlayerId);
+            VoteArea(MeetingHud.Instance, srcPlayerId)?.SetVote(suspectPlayerId);
         }
 
         // If host, then check end voting, and set votes/send chat if applicable

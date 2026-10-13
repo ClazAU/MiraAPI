@@ -40,14 +40,30 @@ internal static class PlayerControlPatches
     [HarmonyPatch(nameof(PlayerControl.Die))]
     public static void PlayerControlDiePostfix(PlayerControl __instance, DeathReason reason)
     {
+        if (MeetingHud.Instance)
+        {
+            VotingUtils.RemoveFromMeeting(__instance);
+        }
+
         var deathEvent = new PlayerDeathEvent(__instance, reason, Helpers.GetBodyById(__instance.PlayerId));
         MiraEventManager.InvokeEvent(deathEvent);
 
         var modifiersComponent = __instance.GetComponent<ModifierComponent>();
-
-        if (modifiersComponent)
+        if (!modifiersComponent)
         {
-            modifiersComponent.ActiveModifiers.ForEach(x => x.OnDeath(reason));
+            return;
+        }
+
+        foreach (var modifier in modifiersComponent.ActiveModifiers)
+        {
+            try
+            {
+                modifier.OnDeath(reason);
+            }
+            catch (System.Exception e)
+            {
+                Error($"Error in {modifier.ModifierName}.OnDeath: {e}");
+            }
         }
     }
 
