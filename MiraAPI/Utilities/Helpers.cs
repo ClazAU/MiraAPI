@@ -91,7 +91,7 @@ public static class Helpers
         scroller.allowX = false;
         scroller.allowY = true;
         scroller.DragScrollSpeed = 1f;
-        scroller.Colliders = Il2CppArrays.Of<Collider2D>([hitBoxCollider]);
+        scroller.Colliders = Il2CppArrays.Of<Collider2D>(hitBoxCollider);
         scroller.Inner = inner.transform;
 
         return scroller;
