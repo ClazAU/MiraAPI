@@ -86,6 +86,11 @@ public enum MiraRpc : uint
     SyncGamemodeOption,
 
     /// <summary>
+    /// Host gives a dead player a custom ghost role on every client.
+    /// </summary>
+    SetGhostRole,
+
+    /// <summary>
     /// Gives a player an extra task mid-round.
     /// </summary>
     GiveTask,

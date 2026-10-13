@@ -144,6 +144,8 @@ public record struct CustomRoleConfiguration
 
     /// <summary>
     /// Gets or sets a value indicating whether the role should show up in the Role Options menu.
+    /// Defaults to true for ghost roles. A ghost role that turns it off is also handed out on death from its count and
+    /// chance, like vanilla's Guardian Angel and Spirit Guide.
     /// </summary>
     public bool HideSettings { get; set; }
 
