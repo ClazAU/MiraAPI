@@ -35,6 +35,15 @@ public static class CustomButtonManager
 
     private static readonly Dictionary<CustomActionButton, MiraButtonCanUseEvent> CanUseEvents = [];
 
+    // Buttons are built with the lobby's HUD, before the host settles the options, so every game starts their uses over.
+    internal static void OnGameStart()
+    {
+        foreach (var button in CustomButtons)
+        {
+            button.ResetUses();
+        }
+    }
+
     // Asked every tick per button, so each button reuses one event instead of allocating a new one.
     internal static bool IsVetoed(CustomActionButton button)
     {

@@ -4,6 +4,7 @@ using Il2CppInterop.Runtime.InteropTypes;
 using MiraAPI.Events;
 using MiraAPI.Events.Vanilla.Gameplay;
 using MiraAPI.GameModes;
+using MiraAPI.Hud;
 using MiraAPI.MeetingAbilities;
 using MiraAPI.Roles;
 using MiraAPI.Translation;
@@ -135,6 +136,7 @@ public static class IntroCutscenePatches
             Info("IntroCutscene ended");
 
             MeetingButtonManager.OnGameStart();
+            CustomButtonManager.OnGameStart();
             MiraEventManager.InvokeEvent(new IntroEndEvent(introCutscene));
 
             var @event = new BeforeRoundStartEvent(true);

@@ -2,6 +2,7 @@
 using HarmonyLib;
 using MiraAPI.Events;
 using MiraAPI.Events.Vanilla.Gameplay;
+using MiraAPI.Hud;
 using MiraAPI.MeetingAbilities;
 using MiraAPI.Utilities;
 
@@ -19,6 +20,7 @@ public static class FreeplayRoundStartPatch
     {
         if (__result) return;
         MeetingButtonManager.OnGameStart();
+        CustomButtonManager.OnGameStart();
         MiraEventManager.InvokeEvent(new RoundStartEvent(true));
     }
 }

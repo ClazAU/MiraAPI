@@ -161,11 +161,7 @@ public abstract class CustomActionButton
 
         Button.graphic.sprite = Sprite.LoadAsset();
 
-        Button.SetUsesRemaining(MaxUses);
-        if (MaxUses <= 0)
-        {
-            Button.SetInfiniteUses();
-        }
+        RefreshUsesDisplay();
 
         if (TextOutlineColor != Color.clear)
         {
@@ -337,6 +333,32 @@ public abstract class CustomActionButton
         {
             Button.usesRemainingSprite.color = UsesLeft == 0 ? Color.red : Color.white;
         }
+    }
+
+    /// <summary>
+    /// Refill the button to <see cref="MaxUses"/>, showing the count, or no count when uses are unlimited.
+    /// </summary>
+    public void ResetUses()
+    {
+        UsesLeft = MaxUses;
+        RefreshUsesDisplay();
+    }
+
+    private void RefreshUsesDisplay()
+    {
+        if (Button == null)
+        {
+            return;
+        }
+
+        if (!LimitedUses)
+        {
+            Button.SetInfiniteUses();
+            return;
+        }
+
+        Button.SetUsesRemaining(UsesLeft);
+        Button.usesRemainingSprite.color = UsesLeft == 0 ? Color.red : Color.white;
     }
 
     /// <summary>
