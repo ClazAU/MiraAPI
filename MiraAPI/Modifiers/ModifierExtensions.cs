@@ -80,10 +80,10 @@ public static class ModifierExtensions
         uint typeId,
         Func<BaseModifier, bool>? predicate = null)
     {
-        var modifier = target.GetModifier(typeId, predicate);
+        var modifier = target.GetModifierComponent().FindLiveModifier(x => x.TypeId == typeId && (predicate == null || predicate(x)));
         if (modifier is null)
         {
-            Error($"Player {target.PlayerId} does not have modifier with type ID {typeId}.");
+            Warning($"Player {target.PlayerId} does not have modifier with type ID {typeId}.");
             return;
         }
 

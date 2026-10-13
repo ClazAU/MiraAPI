@@ -37,10 +37,18 @@ public class ModifierComponent(IntPtr cppPtr) : MonoBehaviour(cppPtr)
 
     private PlayerControl _player = null!;
 
+    // Active and not on its way out, plus anything added since the last tick: what a remove or a uniqueness check means.
+    [HideFromIl2Cpp]
+    private IEnumerable<BaseModifier> Live => ActiveModifiers.Where(m => !_toRemove.Contains(m)).Concat(_toAdd);
+
     internal void ClearModifiers()
     {
+        _toAdd.Clear();
         _toRemove.AddRange(Modifiers);
     }
+
+    [HideFromIl2Cpp]
+    internal BaseModifier? FindLiveModifier(Func<BaseModifier, bool> match) => Live.FirstOrDefault(match);
 
     private void Awake()
     {
@@ -67,10 +75,31 @@ public class ModifierComponent(IntPtr cppPtr) : MonoBehaviour(cppPtr)
 
     private void FixedUpdate()
     {
-        var removed = _toRemove.Count > 0;
-        foreach (var modifier in _toRemove.ToArray())
+        var removing = _toRemove.Distinct().ToArray();
+        _toRemove.Clear();
+        foreach (var modifier in removing)
         {
-            _toRemove.Remove(modifier);
+            Modifiers.Remove(modifier);
+        }
+
+        var adding = _toAdd.ToArray();
+        _toAdd.Clear();
+        foreach (var modifier in adding)
+        {
+            Modifiers.Add(modifier);
+            modifier.Initialized = true;
+        }
+
+        var changed = removing.Length > 0 || adding.Length > 0;
+
+        // Published before the hooks run, so HasModifier inside OnActivate and OnDeactivate already reflects the change.
+        if (changed)
+        {
+            ActiveModifiers = Modifiers.ToImmutableList();
+        }
+
+        foreach (var modifier in removing)
+        {
             try
             {
                 modifier.OnDeactivate();
@@ -79,16 +108,10 @@ public class ModifierComponent(IntPtr cppPtr) : MonoBehaviour(cppPtr)
             {
                 Error($"Error while deactivating modifier {modifier.ModifierName}: {e.ToString()}");
             }
-
-            Modifiers.Remove(modifier);
         }
 
-        var added = _toAdd.Count > 0;
-        foreach (var modifier in _toAdd.ToArray())
+        foreach (var modifier in adding)
         {
-            _toAdd.Remove(modifier);
-            Modifiers.Add(modifier);
-            modifier.Initialized = true;
             try
             {
                 modifier.OnActivate();
@@ -104,14 +127,9 @@ public class ModifierComponent(IntPtr cppPtr) : MonoBehaviour(cppPtr)
             }
         }
 
-        if (removed || added)
+        if (changed && _player.AmOwner && HudManager.InstanceExists)
         {
-            if (_player.AmOwner && HudManager.InstanceExists)
-            {
-                ModifierDisplay?.UpdateModifiersList(Modifiers);
-            }
-
-            ActiveModifiers = Modifiers.ToImmutableList();
+            ModifierDisplay?.UpdateModifiersList(Modifiers);
         }
 
         foreach (var modifier in ActiveModifiers)
@@ -372,7 +390,7 @@ public class ModifierComponent(IntPtr cppPtr) : MonoBehaviour(cppPtr)
     [HideFromIl2Cpp]
     public void RemoveModifier(Type type, Func<BaseModifier, bool>? predicate = null)
     {
-        var modifiers = ActiveModifiers.Where(x => x.GetType() == type && (predicate == null || predicate(x))).ToList();
+        var modifiers = Live.Where(x => x.GetType() == type && (predicate == null || predicate(x))).ToList();
         if (modifiers.Count > 1)
         {
             throw new InvalidOperationException($"Cannot remove modifier {type.Name} because there are multiple instances of that modifier.");
@@ -381,7 +399,7 @@ public class ModifierComponent(IntPtr cppPtr) : MonoBehaviour(cppPtr)
         var modifier = modifiers.FirstOrDefault();
         if (modifier is null)
         {
-            Error($"Cannot remove modifier {type.Name} because it is not active.");
+            Warning($"Cannot remove modifier {type.Name} because it is not active.");
             return;
         }
 
@@ -395,13 +413,10 @@ public class ModifierComponent(IntPtr cppPtr) : MonoBehaviour(cppPtr)
     [HideFromIl2Cpp]
     public void RemoveModifier(BaseModifier modifier)
     {
-        if (!ActiveModifiers.Contains(modifier))
+        if (!TryRemoveModifier(modifier))
         {
-            Error($"Cannot remove modifier {modifier.ModifierName} because it is not active on this player.");
-            return;
+            Warning($"Cannot remove modifier {modifier.ModifierName} because it is not active on this player.");
         }
-
-        _toRemove.Add(modifier);
     }
 
     /// <summary>
@@ -424,10 +439,10 @@ public class ModifierComponent(IntPtr cppPtr) : MonoBehaviour(cppPtr)
     [HideFromIl2Cpp]
     public void RemoveModifier(Guid uniqueId)
     {
-        var modifier = GetModifier(uniqueId);
+        var modifier = Live.FirstOrDefault(x => x.UniqueId == uniqueId);
         if (modifier == null)
         {
-            Error($"Cannot remove modifier with unique id {uniqueId} because it is not active.");
+            Warning($"Cannot remove modifier with unique id {uniqueId} because it is not active.");
             return;
         }
 
@@ -445,8 +460,8 @@ public class ModifierComponent(IntPtr cppPtr) : MonoBehaviour(cppPtr)
     public bool TryRemoveModifier<T>(Func<T, bool>? predicate = null)
         where T : BaseModifier
     {
-        return TryGetModifier(out var modifier, predicate) &&
-               TryRemoveModifier(modifier);
+        var matches = Live.OfType<T>().Where(x => predicate == null || predicate(x)).ToList();
+        return matches.Count == 1 && TryRemoveModifier(matches[0]);
     }
 
     /// <summary>
@@ -459,8 +474,8 @@ public class ModifierComponent(IntPtr cppPtr) : MonoBehaviour(cppPtr)
     [HideFromIl2Cpp]
     public bool TryRemoveModifier(Type type, Func<BaseModifier, bool>? predicate = null)
     {
-        return TryGetModifier(type, out var modifier, predicate) &&
-               TryRemoveModifier(modifier);
+        var matches = Live.Where(x => x.GetType() == type && (predicate == null || predicate(x))).ToList();
+        return matches.Count == 1 && TryRemoveModifier(matches[0]);
     }
 
     /// <summary>
@@ -471,12 +486,22 @@ public class ModifierComponent(IntPtr cppPtr) : MonoBehaviour(cppPtr)
     [HideFromIl2Cpp]
     public bool TryRemoveModifier(BaseModifier modifier)
     {
+        // A pending add is cancelled outright: it never activated, so it gets no OnDeactivate either.
+        if (_toAdd.Remove(modifier))
+        {
+            return true;
+        }
+
         if (!ActiveModifiers.Contains(modifier))
         {
             return false;
         }
 
-        _toRemove.Add(modifier);
+        if (!_toRemove.Contains(modifier))
+        {
+            _toRemove.Add(modifier);
+        }
+
         return true;
     }
 
@@ -490,8 +515,8 @@ public class ModifierComponent(IntPtr cppPtr) : MonoBehaviour(cppPtr)
     [HideFromIl2Cpp]
     public bool TryRemoveModifier(uint typeId, Func<BaseModifier, bool>? predicate = null)
     {
-        return TryGetModifier(typeId, out var modifier, predicate) &&
-               TryRemoveModifier(modifier);
+        var type = ModifierManager.GetModifierType(typeId);
+        return type != null && TryRemoveModifier(type, predicate);
     }
 
     /// <summary>
@@ -502,8 +527,8 @@ public class ModifierComponent(IntPtr cppPtr) : MonoBehaviour(cppPtr)
     [HideFromIl2Cpp]
     public bool TryRemoveModifier(Guid uniqueId)
     {
-        return TryGetModifier(uniqueId, out var modifier) &&
-               TryRemoveModifier(modifier);
+        var modifier = Live.FirstOrDefault(x => x.UniqueId == uniqueId);
+        return modifier != null && TryRemoveModifier(modifier);
     }
 
     /// <summary>
@@ -534,13 +559,13 @@ public class ModifierComponent(IntPtr cppPtr) : MonoBehaviour(cppPtr)
         }
 
         var id = modifier.TypeId;
-        if (modifier.Unique && ActiveModifiers.Find(x => x.TypeId == id) != null)
+        if (modifier.Unique && Live.Any(x => x.TypeId == id))
         {
             Error($"Player already has modifier with id {id}!");
             return null;
         }
 
-        if (ActiveModifiers.Contains(modifier))
+        if (Live.Contains(modifier))
         {
             Error($"Player already has this modifier!");
             return null;
