@@ -25,6 +25,9 @@ namespace MiraAPI.GameOptions;
 public static class ModdedOptionsManager
 {
     private static readonly Dictionary<PropertyInfo, PropertyOptionAttribute> OptionAttributes = [];
+
+    // Looked up on every option read and write, so keyed by the accessor rather than found by reflection each time.
+    private static readonly Dictionary<MethodBase, PropertyOptionAttribute> AttributesByAccessor = [];
     private static readonly Dictionary<Type, AbstractOptionGroup> TypeToGroup = [];
 
     internal static readonly Dictionary<OptionBehaviour, ModdedPlayerOption> CreatedPlayerOptions = [];
@@ -172,6 +175,8 @@ public static class ModdedOptionsManager
         PluginSingleton<MiraApiPlugin>.Instance.Harmony.Patch(getterOriginal, prefix: new HarmonyMethod(getterPatch));
 
         OptionAttributes.Add(property, attribute);
+        AttributesByAccessor[setterOriginal!] = attribute;
+        AttributesByAccessor[getterOriginal!] = attribute;
         attribute.HolderOption = option;
 
         var visibilityAttr = property.GetCustomAttribute<ModdedOptionVisibilityAttribute>();
@@ -259,11 +264,13 @@ public static class ModdedOptionsManager
         var listSetterPatch = typeof(ModdedOptionsManager).GetMethod(nameof(PropertyListSetterPatch));
         PluginSingleton<MiraApiPlugin>.Instance.Harmony.Patch(listSetterOriginal, postfix: new HarmonyMethod(listSetterPatch));
 
-        var listGetterOriginal = listIndex.GetSetMethod();
+        var listGetterOriginal = listIndex.GetGetMethod();
         var listGetterPatch = typeof(ModdedOptionsManager).GetMethod(nameof(PropertyListGetterPatch));
         PluginSingleton<MiraApiPlugin>.Instance.Harmony.Patch(listGetterOriginal, prefix: new HarmonyMethod(listGetterPatch));
 
         OptionAttributes.Add(property, attribute);
+        AttributesByAccessor[setterOriginal!] = attribute;
+        AttributesByAccessor[getterOriginal!] = attribute;
         attribute.HolderOptionList = optionList;
         attribute.Value = propertyVal;
 
@@ -349,10 +356,13 @@ public static class ModdedOptionsManager
     /// <param name="value">The new object value.</param>
     [SuppressMessage("ReSharper", "InconsistentNaming", Justification = "Harmony naming convention.")]
     [SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores", Justification = "Harmony naming convention.")]
+    [HarmonyPostfix]
     public static void PropertySetterPatch(MethodBase __originalMethod, object value)
     {
-        var attribute = OptionAttributes.First(pair => pair.Key.GetSetMethod() == __originalMethod).Value;
-        attribute.SetValue(value);
+        if (AttributesByAccessor.TryGetValue(__originalMethod, out var attribute))
+        {
+            attribute.SetValue(value);
+        }
     }
 
     /// <summary>
@@ -363,9 +373,14 @@ public static class ModdedOptionsManager
     /// <returns><see langword="false"/> so the original getter gets skipped.</returns>
     [SuppressMessage("ReSharper", "InconsistentNaming", Justification = "Harmony naming convention")]
     [SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores", Justification = "Harmony naming convention.")]
+    [HarmonyPrefix]
     public static bool PropertyGetterPatch(MethodBase __originalMethod, ref object __result)
     {
-        var attribute = OptionAttributes.First(pair => pair.Key.GetGetMethod() == __originalMethod).Value;
+        if (!AttributesByAccessor.TryGetValue(__originalMethod, out var attribute))
+        {
+            return true;
+        }
+
         __result = attribute.GetValue();
         return false;
     }
@@ -378,11 +393,10 @@ public static class ModdedOptionsManager
     /// <param name="value">The new object value.</param>
     [SuppressMessage("ReSharper", "InconsistentNaming", Justification = "Harmony naming convention")]
     [SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores", Justification = "Read above.")]
+    [HarmonyPostfix]
     public static void PropertyListSetterPatch(object __instance, int index, object value)
     {
-        var attribute = (ModdedOptionListAttribute)OptionAttributes.First(
-            pair => pair.Value is ModdedOptionListAttribute list && ReferenceEquals(list.Value, __instance)).Value;
-        attribute.SetValue(index, value);
+        OptionListFor(__instance)?.SetValue(index, value);
     }
 
     /// <summary>
@@ -394,11 +408,20 @@ public static class ModdedOptionsManager
     /// <returns>False so the original getter gets skipped.</returns>
     [SuppressMessage("ReSharper", "InconsistentNaming", Justification = "Harmony naming convention")]
     [SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores", Justification = "Read above.")]
+    [HarmonyPrefix]
     public static bool PropertyListGetterPatch(object __instance, int index, ref object __result)
     {
-        var attribute = (ModdedOptionListAttribute)OptionAttributes.First(
-            pair => pair.Value is ModdedOptionListAttribute list && ReferenceEquals(list.Value, __instance)).Value;
+        var attribute = OptionListFor(__instance);
+        if (attribute == null)
+        {
+            return true;
+        }
+
         __result = attribute.GetValue(index);
         return false;
     }
+
+    // The indexer patch covers every List<T> of the option's element type, so most lists it sees are not options.
+    private static ModdedOptionListAttribute? OptionListFor(object list) =>
+        OptionAttributes.Values.OfType<ModdedOptionListAttribute>().FirstOrDefault(attribute => ReferenceEquals(attribute.Value, list));
 }
