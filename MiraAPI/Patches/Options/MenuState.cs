@@ -28,6 +28,8 @@ public class MenuState(IntPtr cppPtr) : MonoBehaviour(cppPtr)
 
     private GameSettingMenu Gsm { get; set; }
 
+    // Managed only: exposing a managed enum to IL2CPP makes Il2CppInterop log "MiraAPI.dll is not registered in il2cpp".
+    [HideFromIl2Cpp]
     public MenuCategory CurrentMenu { get; private set; }
 
     public int CurrentModIdx { get; private set; }

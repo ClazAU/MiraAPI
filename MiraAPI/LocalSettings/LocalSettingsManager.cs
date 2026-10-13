@@ -21,14 +21,14 @@ public static class LocalSettingsManager
         Justification = "Dynamic singleton initialization requires reflection to bypass the private field access modifier because the type is only known at runtime.")]
     internal static bool RegisterTab(Type type, BasePlugin pluginInfo)
     {
-        if (Activator.CreateInstance(type, pluginInfo.Config) is not LocalSettingsTab tab)
-        {
-            return false;
-        }
-
         if (TypeToTab.ContainsKey(type))
         {
             Error($"Local settings tab {type.Name} already exists.");
+            return false;
+        }
+
+        if (Activator.CreateInstance(type, pluginInfo.Config) is not LocalSettingsTab tab)
+        {
             return false;
         }
 

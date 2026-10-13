@@ -271,7 +271,12 @@ public sealed class MiraPluginManager
         };
 
         RegisterKeybinds(typeof(MiraGlobalKeybinds), PluginSingleton<MiraApiPlugin>.Instance);
-        RegisterLocalTabs(typeof(MiraApiSettings), PluginSingleton<MiraApiPlugin>.Instance);
+
+        // Mira's own assembly scan usually registers it already; this covers the case where that scan never ran.
+        if (!LocalSettingsManager.TypeToTab.ContainsKey(typeof(MiraApiSettings)))
+        {
+            RegisterLocalTabs(typeof(MiraApiSettings), PluginSingleton<MiraApiPlugin>.Instance);
+        }
     }
 
     /// <summary>
