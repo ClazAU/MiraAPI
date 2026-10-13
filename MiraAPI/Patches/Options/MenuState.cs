@@ -28,7 +28,8 @@ public class MenuState(IntPtr cppPtr) : MonoBehaviour(cppPtr)
 
     private GameSettingMenu Gsm { get; set; }
 
-    // Managed only: exposing a managed enum to IL2CPP makes Il2CppInterop log "MiraAPI.dll is not registered in il2cpp".
+    // Members typed with Mira's enums stay managed: exposing one to IL2CPP makes Il2CppInterop look the enum up in
+    // "MiraAPI.dll" and log that the assembly is not registered.
     [HideFromIl2Cpp]
     public MenuCategory CurrentMenu { get; private set; }
 
@@ -625,6 +626,7 @@ public class MenuState(IntPtr cppPtr) : MonoBehaviour(cppPtr)
         }
     }
 
+    [HideFromIl2Cpp]
     private void SelectButton(MenuButton button, MenuCategory category)
     {
         if (_largeButtons[button].gameObject.activeInHierarchy)
@@ -638,6 +640,7 @@ public class MenuState(IntPtr cppPtr) : MonoBehaviour(cppPtr)
         }
     }
 
+    [HideFromIl2Cpp]
     private MenuCategory GetNewPageIfNeeded()
     {
         if (CurrentModIdx == 0)

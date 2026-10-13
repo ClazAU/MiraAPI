@@ -128,9 +128,9 @@ public static class AddressablesLoader
 
     internal static void LoadAll()
     {
+        // Called from every main menu start; only the first one loads.
         if (_isInitialized)
         {
-            Error("AddressablesLoader has already been initialized.");
             return;
         }
 

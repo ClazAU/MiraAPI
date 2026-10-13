@@ -39,7 +39,15 @@ public class ModifierComponent(IntPtr cppPtr) : MonoBehaviour(cppPtr)
 
     // Active and not on its way out, plus anything added since the last tick: what a remove or a uniqueness check means.
     [HideFromIl2Cpp]
-    private IEnumerable<BaseModifier> Live => ActiveModifiers.Where(m => !_toRemove.Contains(m)).Concat(_toAdd);
+    private IEnumerable<BaseModifier> Live
+    {
+        get
+        {
+            // A local, so the lambda doesn't capture this: Il2CppInterop would try to inject it as a method of the component.
+            var removing = _toRemove;
+            return ActiveModifiers.Where(m => !removing.Contains(m)).Concat(_toAdd);
+        }
+    }
 
     internal void ClearModifiers()
     {
