@@ -3,6 +3,7 @@ using AmongUs.GameOptions;
 using HarmonyLib;
 using MiraAPI.Events;
 using MiraAPI.Events.Vanilla.Gameplay;
+using MiraAPI.Events.Vanilla.Player;
 using MiraAPI.GameModes;
 using MiraAPI.Modifiers;
 using MiraAPI.Roles;
@@ -112,7 +113,9 @@ public static class RoleManagerPatches
             return true;
         }
 
-        var ghostRole = GhostRoleAssignment.Roll(plr.Data.Role.IsImpostor);
+        var choice = new ChooseGhostRoleEvent(plr);
+        MiraEventManager.InvokeEvent(choice);
+        var ghostRole = choice.GhostRole ?? GhostRoleAssignment.Roll(plr.Data.Role.IsImpostor);
         if (ghostRole == null)
         {
             return true;
