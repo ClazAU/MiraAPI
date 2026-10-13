@@ -45,7 +45,11 @@ public class SmokeButton : CustomActionButton
 {
     public static int Clicks { get; set; }
 
+    public static int Uses { get; set; }
+
     public override string Name => "Smoke";
+
+    public override int MaxUses => Uses;
 
     public override float Cooldown => 0f;
 

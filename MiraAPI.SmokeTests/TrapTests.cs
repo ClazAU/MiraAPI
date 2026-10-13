@@ -120,6 +120,28 @@ public static class TrapTests
         t.Check(SmokeButton.Clicks == 1, $"the button clicked {SmokeButton.Clicks} times once the veto lifted");
     }
 
+    // Buttons are built with the lobby's HUD, so a uses option the host changes afterwards only lands through ResetUses,
+    // which every game start runs.
+    [SmokeTest("buttons.uses_follow_options")]
+    public static IEnumerator ButtonUses(SmokeContext t)
+    {
+        RoleManager.Instance.SetRole(SmokeContext.Local, (RoleTypes)RoleId.Get<SmokeRole>());
+        yield return SmokeContext.Wait(0.5f);
+
+        var button = CustomButtonSingleton<SmokeButton>.Instance;
+        t.Require(button.Button != null, "no Smoke button");
+        var display = button.Button!;
+
+        SmokeButton.Uses = 2;
+        button.ResetUses();
+        t.Check(button.UsesLeft == 2, $"UsesLeft is {button.UsesLeft} after a reset to 2");
+        t.Check(display.usesRemainingSprite.gameObject.activeSelf && display.usesRemainingText.text == "2", $"the button shows \"{display.usesRemainingText.text}\" for 2 uses");
+
+        SmokeButton.Uses = 0;
+        button.ResetUses();
+        t.Check(!display.usesRemainingSprite.gameObject.activeSelf, "a button with unlimited uses still shows a count");
+    }
+
     [SmokeTest("meetings.ejection_text", 60f)]
     public static IEnumerator EjectionText(SmokeContext t)
     {
