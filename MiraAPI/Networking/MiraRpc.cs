@@ -84,4 +84,9 @@ public enum MiraRpc : uint
     /// Custom RPC to sync the Gamemode option.
     /// </summary>
     SyncGamemodeOption,
+
+    /// <summary>
+    /// Gives a player an extra task mid-round.
+    /// </summary>
+    GiveTask,
 }
