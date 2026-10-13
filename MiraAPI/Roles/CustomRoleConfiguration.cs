@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Diagnostics.CodeAnalysis;
 using AmongUs.GameOptions;
 using Il2CppInterop.Runtime.Attributes;
@@ -45,7 +45,7 @@ public record struct CustomRoleConfiguration
         CanUseVent = role.Team is ModdedRoleTeams.Impostor;
         CanUseSabotage = role.Team is ModdedRoleTeams.Impostor;
         TasksCountForProgress = role.Team is ModdedRoleTeams.Crewmate;
-        HideSettings = roleBehaviour?.IsDead == true;
+        HideSettings = false;
         ShowInFreeplay = roleBehaviour?.IsDead == false;
         FreeplayFolder = role.Team switch
         {
@@ -143,9 +143,9 @@ public record struct CustomRoleConfiguration
     public bool TasksCountForProgress { get; set; }
 
     /// <summary>
-    /// Gets or sets a value indicating whether the role should show up in the Role Options menu.
-    /// Defaults to true for ghost roles. A ghost role that turns it off is also handed out on death from its count and
-    /// chance, like vanilla's Guardian Angel and Spirit Guide.
+    /// Gets or sets a value indicating whether the role should be left out of the Role Options menu. Defaults to false.
+    /// A ghost role with its settings shown is handed out on death from its count and chance, like vanilla's Guardian
+    /// Angel and Spirit Guide; hide them for a ghost role that only another role's <see cref="GhostRole"/> hands out.
     /// </summary>
     public bool HideSettings { get; set; }
 
