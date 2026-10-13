@@ -1,4 +1,4 @@
-﻿using HarmonyLib;
+using HarmonyLib;
 using MiraAPI.Events;
 using MiraAPI.Events.Vanilla.Gameplay;
 using MiraAPI.Events.Vanilla.Meeting;
@@ -16,26 +16,34 @@ internal static class EjectionPatches
     [HarmonyPatch(nameof(ExileController.Begin))]
     public static void BeginPostfix(ExileController __instance)
     {
-        var @event = new EjectionEvent(__instance);
-        MiraEventManager.InvokeEvent(@event);
-
-        if (!__instance.initData.networkedPlayer || !__instance.initData.networkedPlayer.Role ||
-            __instance.initData.networkedPlayer.Role is not ICustomRole role)
+        var exiled = __instance.initData.networkedPlayer;
+        if (exiled && exiled.Role && exiled.Role is ICustomRole role &&
+            GameManager.Instance.LogicOptions.GetConfirmImpostor() &&
+            role.GetCustomEjectionMessage(exiled) is { } message)
         {
-            return;
+            __instance.completeString = message;
         }
 
-        if (!GameManager.Instance.LogicOptions.GetConfirmImpostor() || role.GetCustomEjectionMessage(__instance.initData.networkedPlayer) == null)
-        {
-            return;
-        }
-
-        __instance.completeString = role.GetCustomEjectionMessage(__instance.initData.networkedPlayer);
+        // Raised after the custom message is written, so text a handler adds to completeString stays.
+        MiraEventManager.InvokeEvent(new EjectionEvent(__instance));
     }
 
     [HarmonyPatch(typeof(ExileController), nameof(ExileController.ReEnableGameplay))]
     public static class ReEnableGameplayPatch
     {
+        // Vanilla destroys the controller only after gameplay is back and never clears Instance, so the HUD re-show, button
+        // Enabled checks, CanMove and every round-start handler would all still see an ejection in progress.
+        [HarmonyPrefix]
+        public static void Prefix(ExileController __instance)
+        {
+            if (ExileController.Instance == __instance)
+            {
+                ExileController.Instance = null;
+            }
+        }
+
+        [HarmonyPostfix]
+        [HarmonyPriority(Priority.Last)]
         public static void Postfix()
         {
             var @event = new BeforeRoundStartEvent(false);
