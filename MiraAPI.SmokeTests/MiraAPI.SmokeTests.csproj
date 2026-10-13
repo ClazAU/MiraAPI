@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <Version>1.0.0</Version>
+        <Description>In-game smoke tests for MiraAPI. A dev plugin; never shipped to players.</Description>
+        <IsPackable>false</IsPackable>
+        <NoWarn>$(NoWarn);CS1591;SA1600;SA1601;SA1602;SA1611;SA1615;SA1618;SA1623;SA1633;SA1216;CA1707;CA1515;CA1710;RCS1075;RCS1194;S1118;S1244;S1450;S2325;S2365;S2971;S3011;S3376;S3398;S3881;S6602;S6603;S6605;S6608;NU5104</NoWarn>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\MiraAPI\MiraAPI.csproj" />
+    </ItemGroup>
+
+    <Import Project="..\AmongUs.props" />
+</Project>
