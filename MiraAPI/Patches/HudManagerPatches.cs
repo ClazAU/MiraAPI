@@ -21,6 +21,9 @@ namespace MiraAPI.Patches;
 [HarmonyPatch(typeof(HudManager))]
 public static class HudManagerPatches
 {
+    // Whether vanilla last asked for the HUD to be shown, so the button pump only re-shows buttons while it is.
+    internal static bool HudActive { get; private set; }
+
     // Custom buttons parent.
     public static GameObject? BottomLeft { get; private set; }
     public static Transform? BottomRight { get; private set; }
@@ -305,6 +308,7 @@ public static class HudManagerPatches
     [HarmonyPatch(nameof(HudManager.SetHudActive), typeof(PlayerControl), typeof(RoleBehaviour), typeof(bool))]
     public static void SetHudActivePostfix(HudManager __instance, PlayerControl localPlayer, RoleBehaviour role, bool isActive)
     {
+        HudActive = isActive;
         __instance.AdminButton.ToggleVisible(isActive && role.IsImpostor && GameOptionsManager.Instance.CurrentGameOptions.GameMode == AmongUs.GameOptions.GameModes.HideNSeek);
         if (localPlayer.Data == null)
         {

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
+using MiraAPI.Events;
 using MiraAPI.Events.Mira;
 using MiraAPI.PluginLoading;
 
@@ -31,6 +32,22 @@ public static class CustomButtonManager
     internal static readonly List<CustomActionButton> CustomButtons = [];
     internal static readonly Dictionary<Type, Type> ButtonEventTypes = [];
     internal static readonly Dictionary<Type, Type> ButtonCancelledEventTypes = [];
+
+    private static readonly Dictionary<CustomActionButton, MiraButtonCanUseEvent> CanUseEvents = [];
+
+    // Asked every tick per button, so each button reuses one event instead of allocating a new one.
+    internal static bool IsVetoed(CustomActionButton button)
+    {
+        if (!CanUseEvents.TryGetValue(button, out var @event))
+        {
+            @event = new MiraButtonCanUseEvent(button);
+            CanUseEvents[button] = @event;
+        }
+
+        @event.UnCancel();
+        MiraEventManager.InvokeEvent(@event);
+        return @event.IsCancelled;
+    }
 
     [SuppressMessage(
         "Major Code Smell",

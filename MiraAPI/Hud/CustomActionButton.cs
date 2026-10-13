@@ -128,10 +128,15 @@ public abstract class CustomActionButton
     /// </summary>
     public GameObject? KeybindIcon { get; private set; }
 
+    // What Enabled() returned on the previous tick, so a button can be shown again the moment it turns true.
+    internal bool WasEnabled { get; set; }
+
     /// <summary>
     /// Gets or sets the keybind icon text.
     /// </summary>
     private TextMeshPro? KeybindText { get; set; }
+
+    private Action? _keybindHandler;
 
     /// <summary>
     /// The method used to create the button.
@@ -145,6 +150,7 @@ public abstract class CustomActionButton
         }
 
         UsesLeft = MaxUses;
+        WasEnabled = false;
         Timer = AmongUsClient.Instance?.NetworkMode == NetworkModes.FreePlay ? 0 : InitialCooldown;
         EffectActive = false;
         TimerPaused = false;
@@ -168,82 +174,21 @@ public abstract class CustomActionButton
 
         var pb = Button.GetComponent<PassiveButton>();
         pb.OnClick = new Button.ButtonClickedEvent();
-        pb.OnClick.AddListener((UnityAction)(() =>
-        {
-            // Invoke the generic button click event.
-            var genericEvent = new MiraButtonClickEvent(this);
-            MiraEventManager.InvokeEvent(genericEvent);
-            if (genericEvent.IsCancelled)
-            {
-                MiraEventManager.InvokeEvent(new MiraButtonCancelledEvent(this));
-            }
-
-            // Invoke the button click event for specific button.
-            var eventType = CustomButtonManager.ButtonEventTypes[GetType()];
-            var @event = (MiraCancelableEvent)Activator.CreateInstance(eventType, this, genericEvent)!;
-            var specificInvoked = MiraEventManager.InvokeEvent(@event, eventType);
-            if (@event.IsCancelled)
-            {
-                var cancelEventType = CustomButtonManager.ButtonCancelledEventTypes[GetType()];
-                var cancelEvent = (MiraEvent)Activator.CreateInstance(cancelEventType, this)!;
-                MiraEventManager.InvokeEvent(cancelEvent, cancelEventType);
-            }
-
-            if (specificInvoked)
-            {
-                if (!@event.IsCancelled)
-                {
-                    ClickHandler();
-                }
-            }
-            else
-            {
-                if (!genericEvent.IsCancelled)
-                {
-                    ClickHandler();
-                }
-            }
-        }));
+        pb.OnClick.AddListener((UnityAction)(() => RaiseClick()));
 
         if (Keybind == null) return;
-        Keybind.OnActivate(() =>
+
+        // The button is created again every game, and a handler left on the keybind would click once per game played.
+        if (_keybindHandler != null)
         {
-            if (!Enabled(PlayerControl.LocalPlayer.Data.Role)) return;
+            Keybind.RemoveOnActivate(_keybindHandler);
+        }
 
-            // Invoke the generic button click event.
-            var genericEvent = new MiraButtonClickEvent(this);
-            MiraEventManager.InvokeEvent(genericEvent);
-            if (genericEvent.IsCancelled)
-            {
-                MiraEventManager.InvokeEvent(new MiraButtonCancelledEvent(this));
-            }
-
-            // Invoke the button click event for specific button.
-            var eventType = CustomButtonManager.ButtonEventTypes[GetType()];
-            var @event = (MiraCancelableEvent)Activator.CreateInstance(eventType, this, genericEvent)!;
-            var specificInvoked = MiraEventManager.InvokeEvent(@event, eventType);
-            if (@event.IsCancelled)
-            {
-                var cancelEventType = CustomButtonManager.ButtonCancelledEventTypes[GetType()];
-                var cancelEvent = (MiraEvent)Activator.CreateInstance(cancelEventType, this)!;
-                MiraEventManager.InvokeEvent(cancelEvent, cancelEventType);
-            }
-
-            if (specificInvoked)
-            {
-                if (!@event.IsCancelled)
-                {
-                    ClickHandler();
-                }
-            }
-            else
-            {
-                if (!genericEvent.IsCancelled)
-                {
-                    ClickHandler();
-                }
-            }
-        });
+        _keybindHandler = () =>
+        {
+            if (Enabled(PlayerControl.LocalPlayer.Data.Role)) RaiseClick();
+        };
+        Keybind.OnActivate(_keybindHandler);
 
         KeybindIcon =
             Helpers.CreateKeybindIcon(
@@ -451,6 +396,39 @@ public abstract class CustomActionButton
         return false;
     }
 
+    private void RaiseClick()
+    {
+        if (CustomButtonManager.IsVetoed(this))
+        {
+            return;
+        }
+
+        // Invoke the generic button click event.
+        var genericEvent = new MiraButtonClickEvent(this);
+        MiraEventManager.InvokeEvent(genericEvent);
+        if (genericEvent.IsCancelled)
+        {
+            MiraEventManager.InvokeEvent(new MiraButtonCancelledEvent(this));
+        }
+
+        // Invoke the button click event for specific button.
+        var eventType = CustomButtonManager.ButtonEventTypes[GetType()];
+        var @event = (MiraCancelableEvent)Activator.CreateInstance(eventType, this, genericEvent)!;
+        var specificInvoked = MiraEventManager.InvokeEvent(@event, eventType);
+        if (@event.IsCancelled)
+        {
+            var cancelEventType = CustomButtonManager.ButtonCancelledEventTypes[GetType()];
+            var cancelEvent = (MiraEvent)Activator.CreateInstance(cancelEventType, this)!;
+            MiraEventManager.InvokeEvent(cancelEvent, cancelEventType);
+        }
+
+        // A button-specific handler, given the generic event, has the final say.
+        if (specificInvoked ? !@event.IsCancelled : !genericEvent.IsCancelled)
+        {
+            ClickHandler();
+        }
+    }
+
     /// <summary>
     /// When the button is usable, this method is called to determine if the button can be clicked.
     /// By default, it takes into account the timer, effect, and uses.
@@ -554,7 +532,7 @@ public abstract class CustomActionButton
 
         if (Button)
         {
-            if (CanUse())
+            if (CanUse() && !CustomButtonManager.IsVetoed(this))
             {
                 Button!.SetEnabled();
             }

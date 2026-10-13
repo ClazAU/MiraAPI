@@ -159,7 +159,18 @@ internal static class PlayerControlPatches
                 if (!button.Enabled(role))
                 {
                     button.SetActive(false, role);
+                    button.WasEnabled = false;
                     continue;
+                }
+
+                // Nothing else shows a button between HUD toggles, so one whose Enabled() just turned true is shown here.
+                if (!button.WasEnabled)
+                {
+                    button.WasEnabled = true;
+                    if (HudManagerPatches.HudActive)
+                    {
+                        button.SetActive(true, role);
+                    }
                 }
 
                 button.FixedUpdateHandler(__instance);
