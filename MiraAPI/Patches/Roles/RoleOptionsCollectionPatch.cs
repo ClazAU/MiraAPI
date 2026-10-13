@@ -1,11 +1,11 @@
-using System;
-using System.Globalization;
+﻿using System;
 using System.Linq;
 using System.Reflection;
 using AmongUs.GameOptions;
 using HarmonyLib;
 using Il2CppInterop.Runtime.InteropTypes;
 using MiraAPI.Roles;
+using MiraAPI.Utilities;
 
 namespace MiraAPI.Patches.Roles;
 
@@ -22,12 +22,7 @@ public static class RoleOptionsCollectionPatch
 
     private static Type? FindNewestCollection()
     {
-        var collection = AccessTools.GetTypesFromAssembly(typeof(IRoleOptionsCollection).Assembly)
-            .Select(type => (Type: type, Version: CollectionVersion(type)))
-            .Where(x => x.Version.HasValue)
-            .MaxBy(x => x.Version)
-            .Type;
-
+        var collection = PatchTargets.NewestVersion(typeof(IRoleOptionsCollection), CollectionPrefix);
         if (collection == null)
         {
             Error("No RoleOptionsCollection type found, custom role counts will not apply.");
@@ -39,13 +34,6 @@ public static class RoleOptionsCollectionPatch
 
         return collection;
     }
-
-    private static int? CollectionVersion(Type type) =>
-        type.Namespace == typeof(IRoleOptionsCollection).Namespace &&
-        type.Name.StartsWith(CollectionPrefix, StringComparison.Ordinal) &&
-        int.TryParse(type.Name.AsSpan(CollectionPrefix.Length), NumberStyles.None, CultureInfo.InvariantCulture, out var version)
-            ? version
-            : null;
 
     // Attribute patches rather than harmony.Patch calls: the launcher's protector only leaves a patch method's
     // body unencrypted when it can see it is one, and an encrypted body can't run from the IL2CPP trampoline.
