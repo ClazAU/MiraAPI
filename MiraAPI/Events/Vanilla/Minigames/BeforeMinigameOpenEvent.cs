@@ -8,10 +8,4 @@ namespace MiraAPI.Events.Vanilla.Minigames;
 /// Change serialized fields <see cref="Minigame.Begin"/> reads here; the task is not attached yet.
 /// </summary>
 /// <param name="gameObject">The minigame's <see cref="UnityEngine.GameObject"/>.</param>
-public sealed class BeforeMinigameOpenEvent(GameObject gameObject) : MiraEvent
-{
-    /// <summary>
-    /// Gets the minigame's <see cref="UnityEngine.GameObject"/>.
-    /// </summary>
-    public GameObject GameObject { get; } = gameObject;
-}
+public sealed class BeforeMinigameOpenEvent(GameObject gameObject) : MinigameOpenEventBase(gameObject, null);

@@ -48,27 +48,28 @@ public static class MinigameOpenPatches
     }
 
     [HarmonyPrefix]
-    public static void Prefix(Minigame __instance, out bool __state)
+    public static void Prefix(Minigame __instance, out BeforeMinigameOpenEvent? __state)
     {
         var pointer = __instance.Pointer;
-        __state = !Opening.Contains(pointer);
+        var outermost = !Opening.Contains(pointer);
         Opening.Add(pointer);
 
-        if (__state)
+        __state = outermost ? new BeforeMinigameOpenEvent(__instance.gameObject) : null;
+        if (__state != null)
         {
-            MiraEventManager.InvokeEvent(new BeforeMinigameOpenEvent(__instance.gameObject));
+            MiraEventManager.InvokeEvent(__state);
         }
     }
 
     [HarmonyFinalizer]
-    public static void Finalizer(Minigame __instance, Exception? __exception, bool __state)
+    public static void Finalizer(Minigame __instance, Exception? __exception, BeforeMinigameOpenEvent? __state)
     {
         var index = Opening.LastIndexOf(__instance.Pointer);
         if (index >= 0) Opening.RemoveAt(index);
 
-        if (__state && __exception == null && __instance)
+        if (__state != null && __exception == null && __instance)
         {
-            MiraEventManager.InvokeEvent(new MinigameOpenEvent(__instance.gameObject));
+            MiraEventManager.InvokeEvent(new MinigameOpenEvent(__instance.gameObject, __state.ModifiedBy));
         }
     }
 
