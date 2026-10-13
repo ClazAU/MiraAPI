@@ -55,7 +55,7 @@ internal static class PlayerControlPatches
     [HarmonyPatch(nameof(PlayerControl.CompleteTask))]
     public static void PlayerCompleteTaskPostfix(PlayerControl __instance, uint idx)
     {
-        var playerTask = __instance.myTasks.ToArray().First(playerTask => playerTask.Id == idx);
+        var playerTask = __instance.myTasks.ToArray().FirstOrDefault(playerTask => playerTask.Id == idx);
         if (playerTask != null)
         {
             var completeTaskEvent = new CompleteTaskEvent(__instance, playerTask);
