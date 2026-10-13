@@ -44,7 +44,11 @@ public static class VentEventPatches
     public static bool PlayerPhysicsRpcExitVentPrefix(PlayerPhysics __instance, int ventId)
     {
         var pc = __instance.myPlayer;
-        var vent = ShipStatus.Instance.AllVents.First(v => v.Id == ventId);
+        var vent = ShipStatus.Instance.AllVents.FirstOrDefault(v => v.Id == ventId);
+        if (vent == null)
+        {
+            return true;
+        }
 
         var @event = new ExitVentEvent(pc, vent);
         MiraEventManager.InvokeEvent(@event);

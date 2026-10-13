@@ -31,13 +31,20 @@ public static class RoleManagerPatches
             return false;
         }
 
+        var rolePrefab = __instance.AllRoles.ToArray().FirstOrDefault(r => r.Role == roleType);
+        if (rolePrefab == null)
+        {
+            Error($"No role is registered as {roleType}, so {targetPlayer.name} keeps their role; this client is likely missing the mod that adds it.");
+            return false;
+        }
+
         if (data.Role)
         {
             data.Role.Deinitialize(targetPlayer);
             Object.Destroy(data.Role.gameObject);
         }
 
-        var roleBehaviour = Object.Instantiate<RoleBehaviour>(__instance.AllRoles.ToArray().First(r => r.Role == roleType), data.gameObject.transform);
+        var roleBehaviour = Object.Instantiate<RoleBehaviour>(rolePrefab, data.gameObject.transform);
         roleBehaviour.Initialize(targetPlayer);
         targetPlayer.Data.Role = roleBehaviour;
         targetPlayer.Data.RoleType = roleType;
